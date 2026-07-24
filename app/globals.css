@@ -128,10 +128,13 @@
   }
   html {
     @apply font-sans;
+    scroll-behavior: smooth;
   }
 }
 
 ::selection { background: #8b5cf6; color: white; }
+a[href], button { cursor: pointer; }
+a[href]:focus-visible, button:focus-visible { outline: 2px solid rgb(167 139 250 / .9); outline-offset: 3px; }
 
 @keyframes drift { 0%, 100% { transform: translate3d(0, 0, 0); } 50% { transform: translate3d(0, -13px, 0); } }
 @keyframes pulse-glow { 0%, 100% { opacity: .55; transform: scale(.92); } 50% { opacity: .9; transform: scale(1.08); } }

@@ -9,7 +9,7 @@ import { SectionHeading, glass } from "./shared";
 export function ProductDemo() {
   const [asked, setAsked] = useState(false);
   const [citationsOpen, setCitationsOpen] = useState(false);
-  return <section className="relative px-4 py-24 sm:px-6 sm:py-32"><div className="absolute left-1/2 top-1/2 -z-10 h-80 w-2/3 -translate-x-1/2 rounded-full bg-violet-600/[.08] blur-[120px]" />
+  return <section id="demo" className="relative scroll-mt-24 px-4 py-24 sm:px-6 sm:py-32"><div className="absolute left-1/2 top-1/2 -z-10 h-80 w-2/3 -translate-x-1/2 rounded-full bg-violet-600/[.08] blur-[120px]" />
     <SectionHeading eyebrow="See Lumina think" title="Ask once. Understand the whole picture." copy="A quiet, source-aware workspace for questions that deserve more than a search result." />
     <motion.div initial={{ opacity: 0, y: 32, scale: .98, filter: "blur(8px)" }} whileInView={{ opacity: 1, y: 0, scale: 1, filter: "blur(0px)" }} viewport={{ once: true, amount: .2 }} transition={{ type: "spring", stiffness: 68, damping: 18, mass: 1 }} className={`${glass} mx-auto mt-12 max-w-5xl overflow-hidden rounded-3xl`}>
       <div className="flex items-center justify-between border-b border-white/[.08] px-4 py-3 sm:px-5"><div className="flex items-center gap-2"><span className="grid size-7 place-items-center rounded-lg bg-violet-500/15 text-violet-300"><Sparkles className="size-3.5" /></span><span className="text-sm font-medium">Machine Learning Crash Course</span></div><span className="hidden rounded-full border border-white/[.08] px-2.5 py-1 text-[10px] text-zinc-400 sm:block">12 sources indexed</span></div>
