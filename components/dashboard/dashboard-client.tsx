@@ -62,7 +62,7 @@ export function DashboardClient() {
 
     sessionStorage.setItem(`lumina:notebook:${notebook.id}`, JSON.stringify(notebook));
     setNotebooks((current) => [notebook, ...current]);
-    router.push(`/notebook/${notebook.id}`);
+    router.push(`/dashboard/notebooks/${notebook.id}`);
   };
 
   return (
