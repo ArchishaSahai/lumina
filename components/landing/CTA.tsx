@@ -1,0 +1,8 @@
+"use client";
+
+import { motion } from "framer-motion";
+import { ArrowRight, Code2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { fadeUp } from "./shared";
+
+export function CTA() { return <section className="relative px-4 py-24 sm:px-6 sm:py-32"><div className="pointer-events-none absolute left-1/2 top-1/2 -z-10 h-[420px] w-[82%] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(ellipse,rgba(124,58,237,.28),rgba(59,130,246,.11)_38%,transparent_70%)] blur-[75px]" /><motion.div initial="hidden" whileInView="visible" viewport={{once:true,amount:.25}} variants={fadeUp} className="relative mx-auto max-w-5xl overflow-hidden rounded-3xl border border-violet-300/20 bg-[#100b1d] px-6 py-20 text-center sm:px-12"><div className="absolute left-1/2 top-1/2 -z-0 size-[550px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-violet-600/30 blur-[100px]" /><div className="relative"><p className="text-xs font-semibold uppercase tracking-[.22em] text-violet-300">Start building your library</p><h2 className="mx-auto mt-5 max-w-2xl text-balance text-4xl font-semibold tracking-[-.055em] sm:text-6xl">Build your second brain today.</h2><p className="mx-auto mt-5 max-w-lg text-pretty text-zinc-300">Make every source more useful. Your first notebook is ready when you are.</p><div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row"><Button size="lg" className="bg-violet-500 text-white hover:-translate-y-0.5 hover:bg-violet-400">Start free <ArrowRight className="ml-2 size-4" /></Button><Button size="lg" variant="outline" className="border-white/15 bg-black/10 text-white hover:-translate-y-0.5 hover:bg-white/10"><Code2 className="mr-2 size-4" /> GitHub</Button></div></div></motion.div></section>; }

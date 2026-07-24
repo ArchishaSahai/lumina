@@ -7,9 +7,9 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-sans);
-  --font-mono: var(--font-geist-mono);
-  --font-heading: var(--font-sans);
+  --font-sans: Geist, "Geist Sans", Inter, Arial, Helvetica, sans-serif;
+  --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  --font-heading: "Space Grotesk", Geist, "Geist Sans", Inter, Arial, Helvetica, sans-serif;
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -49,8 +49,8 @@
 }
 
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
+  --background: #000000;
+  --foreground: #ffffff;
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
@@ -123,8 +123,36 @@
   }
   body {
     @apply bg-background text-foreground;
+    background: #000;
+    overflow-x: clip;
   }
   html {
     @apply font-sans;
   }
 }
+
+::selection { background: #8b5cf6; color: white; }
+
+@keyframes drift { 0%, 100% { transform: translate3d(0, 0, 0); } 50% { transform: translate3d(0, -13px, 0); } }
+@keyframes pulse-glow { 0%, 100% { opacity: .55; transform: scale(.92); } 50% { opacity: .9; transform: scale(1.08); } }
+@keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+.animate-drift { animation: drift 6s ease-in-out infinite; }
+.animate-pulse-glow { animation: pulse-glow 7s ease-in-out infinite; }
+.font-heading { font-family: var(--font-heading); }
+.hero-atmosphere { width: min(138vw, 1610px); height: 943px; opacity: .78; background: radial-gradient(ellipse 42% 42% at center, rgba(124, 58, 237, .18) 0%, rgba(109, 40, 217, .095) 22%, rgba(91, 33, 182, .038) 43%, rgba(76, 29, 149, .009) 60%, transparent 88%); filter: blur(52px); -webkit-mask-image: radial-gradient(ellipse 48% 48% at center, #000 0%, rgba(0,0,0,.72) 47%, transparent 90%); mask-image: radial-gradient(ellipse 48% 48% at center, #000 0%, rgba(0,0,0,.72) 47%, transparent 90%); animation: atmosphere-breathe 18s cubic-bezier(.45, 0, .55, 1) infinite; will-change: transform, opacity; }
+.core-ring { animation: core-spin 104s linear infinite; will-change: transform; }
+.core-ring-reverse { animation: core-spin 136s linear infinite reverse; will-change: transform; }
+@keyframes core-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+.core-breathe { animation: core-breathe 10s cubic-bezier(.45, 0, .55, 1) infinite; will-change: transform, opacity; }
+.core-aura { animation: core-aura 15s cubic-bezier(.45, 0, .55, 1) infinite; will-change: transform, opacity; }
+.core-haze { animation: core-haze 65s linear infinite; will-change: transform; }
+.core-haze-reverse { animation: core-haze-reverse 83s linear infinite; will-change: transform; }
+.core-pulse { animation: core-pulse 8.5s cubic-bezier(.45, 0, .55, 1) infinite; will-change: transform, opacity; }
+.hero-noise { opacity: .035; background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 160 160' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.5'/%3E%3C/svg%3E"); mix-blend-mode: soft-light; }
+@keyframes core-breathe { 0%, 100% { transform: translate(-50%, -50%) scale(.94); opacity: .48; } 50% { transform: translate(-50%, -50%) scale(1.08); opacity: .9; } }
+@keyframes core-aura { 0%, 100% { transform: translate(-50%, -50%) scale(.9); opacity: .38; } 50% { transform: translate(-50%, -50%) scale(1.12); opacity: .72; } }
+@keyframes core-haze { to { transform: translate(-50%, -50%) rotate(360deg) scale(1.04); } }
+@keyframes core-haze-reverse { to { transform: translate(-50%, -50%) rotate(-360deg) scale(.94); } }
+@keyframes core-pulse { 0%, 100% { transform: translate(-50%, -50%) scale(.88); opacity: 0; } 35% { opacity: .46; } 55% { transform: translate(-50%, -50%) scale(1.28); opacity: 0; } }
+@keyframes atmosphere-breathe { 0%, 100% { transform: translate(-50%, -50%) scale(.96); opacity: .64; } 50% { transform: translate(-50%, -50%) scale(1.04); opacity: .82; } }
+.grid-fade { background-image: linear-gradient(rgba(139, 92, 246, .09) 1px, transparent 1px), linear-gradient(90deg, rgba(139, 92, 246, .09) 1px, transparent 1px); background-size: 52px 52px; mask-image: linear-gradient(to bottom, black, transparent 88%); }
