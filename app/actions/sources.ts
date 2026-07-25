@@ -8,6 +8,7 @@ import { z } from "zod";
 import { serializeSource } from "@/lib/sources";
 import { prisma } from "@/lib/prisma";
 import { deleteFile, saveFile } from "@/lib/storage";
+import { processSource } from "@/lib/ingestion/pipeline";
 
 const urlSchema = z.object({ url: z.string().trim().url("Enter a valid URL."), title: z.string().trim().max(160).optional() });
 const fileTypes = { ".pdf": SourceType.PDF, ".md": SourceType.MARKDOWN, ".markdown": SourceType.MARKDOWN, ".txt": SourceType.TEXT, ".vtt": SourceType.VTT } as const;
@@ -44,7 +45,9 @@ export async function uploadSourceFile(notebookId: string, formData: FormData) {
   const source = await prisma.source.create({ data: { notebookId, title: file.name, type, status: SourceStatus.UPLOADING } });
   try {
     const storedFile = await saveFile(file, notebookId);
-    const stored = await prisma.source.update({ where: { id: source.id }, data: { filePath: storedFile.path, status: SourceStatus.READY } });
+    await prisma.source.update({ where: { id: source.id }, data: { filePath: storedFile.path } });
+    await processSource(source.id);
+    const stored = await prisma.source.findUniqueOrThrow({ where: { id: source.id } });
     await prisma.notebook.update({ where: { id: notebookId }, data: { updatedAt: new Date() } });
     refreshNotebook(notebookId);
     return serializeSource(stored);
@@ -60,10 +63,17 @@ export async function addUrlSource(notebookId: string, input: unknown) {
   const { url, title } = urlSchema.parse(input);
   const parsedUrl = new URL(url);
   const type = /(^|\.)youtu\.be$|(^|\.)youtube\.com$/i.test(parsedUrl.hostname) ? SourceType.YOUTUBE : SourceType.WEBSITE;
-  const source = await prisma.source.create({ data: { notebookId, title: title || parsedUrl.hostname.replace(/^www\./, ""), type, url, status: SourceStatus.READY } });
+  const source = await prisma.source.create({ data: { notebookId, title: title || parsedUrl.hostname.replace(/^www\./, ""), type, url, status: SourceStatus.UPLOADING } });
+  try {
+    await processSource(source.id);
+  } catch (error) {
+    refreshNotebook(notebookId);
+    throw error;
+  }
+  const processedSource = await prisma.source.findUniqueOrThrow({ where: { id: source.id } });
   await prisma.notebook.update({ where: { id: notebook.id }, data: { updatedAt: new Date() } });
   refreshNotebook(notebookId);
-  return serializeSource(source);
+  return serializeSource(processedSource);
 }
 
 export async function deleteSource(sourceId: string) {

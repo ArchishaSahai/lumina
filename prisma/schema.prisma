@@ -41,15 +41,36 @@ enum SourceStatus {
 }
 
 model Source {
-  id         String       @id @default(cuid())
-  notebookId String
-  title      String
-  type       SourceType
-  status     SourceStatus @default(UPLOADING)
-  filePath   String?
-  url        String?
-  createdAt  DateTime     @default(now())
-  notebook   Notebook     @relation(fields: [notebookId], references: [id], onDelete: Cascade)
+  id              String        @id @default(cuid())
+  notebookId      String
+  title           String
+  type            SourceType
+  status          SourceStatus  @default(UPLOADING)
+  filePath        String?
+  url             String?
+  createdAt       DateTime      @default(now())
+  parsedText      String?
+  processedAt     DateTime?
+  processingError String?
+  notebook        Notebook      @relation(fields: [notebookId], references: [id], onDelete: Cascade)
+  chunks          SourceChunk[]
 
   @@index([notebookId, createdAt])
+}
+
+model SourceChunk {
+  id               String     @id @default(cuid())
+  sourceId         String
+  notebookId       String
+  chunkIndex       Int
+  sourceType       SourceType
+  title            String
+  text             String
+  timestampStartMs Int?
+  timestampEndMs   Int?
+  createdAt        DateTime   @default(now())
+  source           Source     @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+
+  @@unique([sourceId, chunkIndex])
+  @@index([notebookId])
 }

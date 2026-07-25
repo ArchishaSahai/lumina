@@ -1,4 +1,4 @@
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile as readLocalFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 
@@ -21,9 +21,16 @@ export async function saveFile(file: File, directory: string): Promise<StoredFil
 }
 
 export async function deleteFile(filePath: string): Promise<void> {
+  await rm(resolveStoragePath(filePath), { force: true });
+}
+
+export async function readFile(filePath: string): Promise<Buffer> {
+  return readLocalFile(resolveStoragePath(filePath));
+}
+
+function resolveStoragePath(filePath: string) {
   const destination = path.resolve(storageRoot, filePath);
   const relative = path.relative(storageRoot, destination);
   if (relative.startsWith("..") || path.isAbsolute(relative)) throw new Error("Invalid storage path.");
-
-  await rm(destination, { force: true });
+  return destination;
 }
