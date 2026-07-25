@@ -39,12 +39,32 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   const rewritten = await rewriteQuery(retrievalPlan.query);
   const retrieved = await searchNotebookChunks(notebookId, rewritten, retrievalPlan);
+
+  console.info("[RAG Tracing] User Message:", input.question);
+  console.info("[RAG Tracing] Detected Intent:", retrievalPlan.intent);
+  console.info("[RAG Tracing] Exact Model Called:", process.env.OPENAI_CHAT_MODEL ?? "gpt-4.1-mini");
+  console.info("[RAG Tracing] Retrieved Chunks Count:", retrieved.length);
+  console.info("[RAG Tracing] Retrieved Context Character Length:", retrieved.reduce((acc, c) => acc + c.text.length, 0));
+
+  if (retrieved.length === 0) {
+    const noContentMessage = retrievalPlan.intent === "summarization" || /\b(summary|summarize)\b/i.test(input.question)
+      ? "Unable to generate a summary because no indexed notebook content was found."
+      : "The context does not contain information to answer this question.";
+    await appendMessage(conversation.id, notebookId, "ASSISTANT", noContentMessage, []);
+    const response = new Response(noContentMessage, { headers: { "Content-Type": "text/plain; charset=utf-8" } });
+    response.headers.set("x-lumina-citations", encodeURIComponent(JSON.stringify([])));
+    return response;
+  }
+
   const prompt = buildGroundedPrompt(rewritten, retrieved, retrievalPlan.intent);
+  console.info("[RAG Tracing] Final Prompt Sent to LLM:\n", prompt);
 
   const result = streamText({
     model: getChatModel(),
     prompt,
+    maxOutputTokens: 4096,
     onFinish: async ({ text }) => {
+      console.info("[RAG Tracing] Raw LLM Response BEFORE Markdown Rendering:\n", text);
       await appendMessage(conversation.id, notebookId, "ASSISTANT", text, selectCitationsForAnswer(text, retrieved).map((chunk) => ({ sourceId: chunk.sourceId, sourceTitle: chunk.title, sourceType: chunk.source.type, sourceUrl: chunk.source.url, chunkId: chunk.id, preview: chunk.text.slice(0, 220), timestampStartMs: chunk.timestampStartMs, timestampEndMs: chunk.timestampEndMs })));
     },
   });
