@@ -19,6 +19,37 @@ model Notebook {
   userId      String
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+  sources     Source[]
 
   @@index([userId, updatedAt])
+}
+
+enum SourceType {
+  PDF
+  YOUTUBE
+  WEBSITE
+  MARKDOWN
+  TEXT
+  VTT
+}
+
+enum SourceStatus {
+  UPLOADING
+  PROCESSING
+  READY
+  FAILED
+}
+
+model Source {
+  id         String       @id @default(cuid())
+  notebookId String
+  title      String
+  type       SourceType
+  status     SourceStatus @default(UPLOADING)
+  filePath   String?
+  url        String?
+  createdAt  DateTime     @default(now())
+  notebook   Notebook     @relation(fields: [notebookId], references: [id], onDelete: Cascade)
+
+  @@index([notebookId, createdAt])
 }

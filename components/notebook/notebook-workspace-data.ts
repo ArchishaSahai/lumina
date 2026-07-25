@@ -1,13 +1,9 @@
-import type { LucideIcon } from "lucide-react";
-import { FileText, Film, FileCode2, Presentation } from "lucide-react";
-
 export type Conversation = {
   id: string;
   title: string;
   preview: string;
   updatedAt: string;
 };
-
 export type ChatMessage = {
   id: string;
   role: "user" | "assistant";
@@ -15,12 +11,6 @@ export type ChatMessage = {
   timestamp: string;
   citations?: string[];
   streaming?: boolean;
-};
-
-export type NotebookSource = {
-  name: string;
-  meta: string;
-  icon: LucideIcon;
 };
 
 export const conversations: Conversation[] = [
@@ -67,10 +57,3 @@ export const messagesByConversation: Record<string, ChatMessage[]> = {
     { id: "ml-answer", role: "assistant", content: "Start with precision-recall trade-offs and choose a threshold that reflects the cost of false positives and false negatives. Accuracy alone can be misleading when one class dominates.", timestamp: "Jul 22", citations: ["Research.pdf · p. 42"] },
   ],
 };
-
-export const sources: NotebookSource[] = [
-  { name: "Research.pdf", meta: "38 pages · PDF", icon: FileText },
-  { name: "Lecture 08.mp4", meta: "46 min · Video", icon: Film },
-  { name: "Operating Systems Notes.md", meta: "12 sections · Markdown", icon: FileCode2 },
-  { name: "System Design.pdf", meta: "24 pages · PDF", icon: Presentation },
-];
