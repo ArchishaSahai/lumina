@@ -1,5 +1,7 @@
+import { getUserNotebooks } from "@/app/actions/notebooks";
 import { DashboardClient } from "@/components/dashboard/dashboard-client";
 
-export default function DashboardPage() {
-  return <DashboardClient />;
+export default async function DashboardPage() {
+  const notebooks = await getUserNotebooks();
+  return <DashboardClient notebooks={notebooks} />;
 }
