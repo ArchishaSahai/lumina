@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import type { SourceChunk, SourceType } from "@/lib/generated/prisma/client";
+import { formatMediaTimestamp } from "@/lib/formatters";
 import { embedText } from "./embeddings";
 import { getPineconeIndex } from "./pinecone";
 
@@ -13,14 +14,12 @@ type SearchDb = {
 const db = prisma as unknown as SearchDb;
 
 export function formatChunkCitation(chunk: { title: string; timestampStartMs: number | null }) {
-  return chunk.timestampStartMs == null ? chunk.title : `${chunk.title} @ ${formatTimestamp(chunk.timestampStartMs)}`;
+  const ts = formatMediaTimestamp(chunk.timestampStartMs);
+  return ts ? `${chunk.title} @ ${ts}` : chunk.title;
 }
 
-export function formatTimestamp(milliseconds: number) {
-  const totalSeconds = Math.floor(milliseconds / 1000);
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  return `${minutes}:${String(seconds).padStart(2, "0")}`;
+export function formatTimestamp(milliseconds: number | null | undefined) {
+  return formatMediaTimestamp(milliseconds);
 }
 
 export async function upsertChunksToPinecone(chunks: Array<{ id: string; notebookId: string; sourceId: string; chunkIndex: number; text: string; title: string; sourceType: SourceType; timestampStartMs?: number | null; timestampEndMs?: number | null }>) {
@@ -134,13 +133,62 @@ function sourceDiverseChunks(chunks: RetrievedChunk[], limit: number) {
 }
 
 async function representativeNotebookChunks(notebookId: string, limit: number) {
-  const chunks = await db.sourceChunk.findMany({ where: { notebookId }, include: { source: true }, orderBy: { chunkIndex: "asc" }, take: 80 });
-  return sourceDiverseChunks(chunks.map((chunk) => ({ ...chunk, score: 0.1 })), limit);
+  const allChunks = await db.sourceChunk.findMany({
+    where: { notebookId },
+    include: { source: true },
+    orderBy: { chunkIndex: "asc" },
+    take: 200,
+  });
+
+  if (allChunks.length === 0) return [];
+
+  const bySource = new Map<string, RetrievedChunk[]>();
+  for (const raw of allChunks) {
+    const chunk = { ...raw, score: 0.5 };
+    const list = bySource.get(chunk.sourceId) ?? [];
+    list.push(chunk);
+    bySource.set(chunk.sourceId, list);
+  }
+
+  const numSources = bySource.size;
+  const chunksPerSource = Math.max(2, Math.floor(limit / Math.max(1, numSources)));
+  const selected: RetrievedChunk[] = [];
+
+  for (const [, sourceChunks] of bySource.entries()) {
+    const count = sourceChunks.length;
+    if (count <= chunksPerSource) {
+      selected.push(...sourceChunks);
+    } else {
+      const step = (count - 1) / (chunksPerSource - 1);
+      for (let i = 0; i < chunksPerSource; i++) {
+        const idx = Math.min(count - 1, Math.round(i * step));
+        const candidate = sourceChunks[idx];
+        if (candidate.source.type === "YOUTUBE" && (candidate.timestampStartMs ?? 0) === 0 && count > 1) {
+          const nonZero = sourceChunks.find((c) => (c.timestampStartMs ?? 0) > 0);
+          if (nonZero && !selected.some((s) => s.id === nonZero.id)) {
+            selected.push(nonZero);
+            continue;
+          }
+        }
+        if (!selected.some((s) => s.id === candidate.id)) {
+          selected.push(candidate);
+        }
+      }
+    }
+  }
+
+  return rerankChunks(selected.slice(0, limit), limit);
 }
 
 export async function searchNotebookChunks(notebookId: string, query: string, planOrLimit: RetrievalPlan | number = 5) {
   const plan = typeof planOrLimit === "number" ? { intent: "specific" as const, query, limit: planOrLimit, topK: Math.max(planOrLimit * 3, 10), broad: false } : planOrLimit;
   if (plan.limit <= 0) return [];
+
+  if (plan.intent === "summarization") {
+    const representative = await representativeNotebookChunks(notebookId, plan.limit);
+    if (representative.length > 0) return representative;
+  }
+
   const index = getPineconeIndex();
   const embedding = await embedText(query);
   const result = await index.namespace("chunks").query({ vector: embedding, topK: plan.topK, includeMetadata: true, filter: { notebookId: { $eq: notebookId } } });
@@ -160,13 +208,44 @@ export async function searchNotebookChunks(notebookId: string, query: string, pl
 }
 
 export function buildGroundedPrompt(question: string, chunks: RetrievedChunk[], intent: QueryIntent = "specific") {
-  const context = chunks.map((chunk) => `${chunk.title}${chunk.timestampStartMs != null ? ` (${formatTimestamp(chunk.timestampStartMs)})` : ""}\n${chunk.text}`).join("\n\n");
-  const overviewGuidance = ["overview", "summarization", "study_guide"].includes(intent) ? " The user is asking broadly across the notebook, so synthesize themes from all provided context instead of narrowing to one phrase match." : "";
+  const context = chunks
+    .map((chunk) => {
+      const ts = formatTimestamp(chunk.timestampStartMs);
+      return `[Source: ${chunk.title}${ts ? ` (${ts})` : ""}]\n${chunk.text}`;
+    })
+    .join("\n\n");
   const isHindiOrHinglish = /[\u0900-\u097F]|\b(kya|hai|kaise|ko|ka|ke|ki|batao|matlab|mein|se|ye|woh|kab|kahan|kyun|bhi|hain|kisi|par)\b/i.test(question);
   const languageGuidance = isHindiOrHinglish
-    ? " IMPORTANT: The user asked in Hindi/Hinglish. Respond in Hinglish (Hindi written in Roman/Latin script, e.g., 'ARP (Address Resolution Protocol) networking mein use hone wala protocol hai...'). Do NOT use Devanagari script."
+    ? "\nIMPORTANT: Respond in Hinglish (Hindi in Roman/Latin script, e.g., 'ARP networking mein use hone wala protocol hai...'). Do NOT use Devanagari script."
     : "";
-  return `Answer the question using only the context below.${overviewGuidance}${languageGuidance} Do not mention source labels, citation markers, or references; Lumina renders supporting sources separately. If the context does not answer the question, say so plainly.\n\nContext:\n${context}\n\nQuestion: ${question}`;
+
+  if (intent === "summarization" || /\b(summary|summarize)\b/i.test(question)) {
+    return `Notebook Content Context:
+${context}
+
+Synthesize the provided notebook content context above into a detailed, comprehensive summary.
+
+For each section below, write 2-4 detailed sentences or bullet points based on the notebook context. Every section heading MUST be followed by content. Do not leave any heading empty.${languageGuidance}
+
+1. Start with a "# Notebook Summary" title.
+2. Under "## Overview", write a 2-3 sentence overview of all the materials.
+3. Under "## Main Topics", list and describe the key topics covered.
+4. Under "## Key Concepts", explain the core technical concepts and ideas.
+5. Under "## Important Definitions", define key terms, acronyms, and terminology.
+6. Under "## Relationships Between Topics", explain how the topics in the notebook connect.
+7. Under "## Important Examples", describe specific examples or scenarios from the text.
+8. Under "## Key Takeaways", provide 4 bullet points summarizing key lessons.
+9. Under "## Suggested Next Steps", provide 3 practical next steps for learning.
+
+Generate the full summary now.`;
+  }
+
+  return `Notebook Content Context:
+${context}
+
+${languageGuidance}Answer the question using only the context above. Do not mention source labels or citation markers; Lumina renders supporting sources separately. If the context does not answer the question, say so plainly.
+
+Question: ${question}`;
 }
 
 export function isNegativeResponse(answer: string): boolean {
@@ -185,13 +264,43 @@ export function selectCitationsForAnswer(answer: string, chunks: RetrievedChunk[
       const overlap = termOverlap(answer, chunk.text);
       const isVectorMatch = chunk.score >= 0.50;
       const isOverlapMatch = overlap >= 0.18;
-      const relevanceScore = isVectorMatch ? chunk.score + overlap : isOverlapMatch ? overlap : 0;
+      const hasValidTimestamp = typeof chunk.timestampStartMs === "number" && chunk.timestampStartMs >= 1000;
+      const timestampBonus = hasValidTimestamp ? 0.05 : 0;
+      const relevanceScore = (isVectorMatch ? chunk.score + overlap : isOverlapMatch ? overlap : 0) + timestampBonus;
       return { chunk, isRelevant: isVectorMatch || isOverlapMatch, relevanceScore };
     })
-    .filter((item) => item.isRelevant)
-    .sort((a, b) => b.relevanceScore - a.relevanceScore);
+    .filter((item) => item.isRelevant);
 
-  return candidates.map((item) => item.chunk).slice(0, 3);
+  const bySource = new Map<string, typeof candidates>();
+  for (const item of candidates) {
+    const list = bySource.get(item.chunk.sourceId) ?? [];
+    list.push(item);
+    bySource.set(item.chunk.sourceId, list);
+  }
+
+  const resultCitations: RetrievedChunk[] = [];
+  for (const [, items] of bySource.entries()) {
+    const isYouTube = items.some((it) => it.chunk.source.type === "YOUTUBE");
+    if (isYouTube) {
+      const validTsItems = items.filter((it) => typeof it.chunk.timestampStartMs === "number" && it.chunk.timestampStartMs >= 1000);
+      if (validTsItems.length > 0) {
+        validTsItems.sort((a, b) => (a.chunk.timestampStartMs as number) - (b.chunk.timestampStartMs as number));
+        resultCitations.push(...validTsItems.map((it) => it.chunk));
+      } else {
+        items.sort((a, b) => b.relevanceScore - a.relevanceScore);
+        resultCitations.push(items[0].chunk);
+      }
+    } else {
+      items.sort((a, b) => b.relevanceScore - a.relevanceScore);
+      resultCitations.push(items[0].chunk);
+    }
+  }
+
+  if (resultCitations.length === 0 && chunks.length > 0) {
+    return chunks.slice(0, 10);
+  }
+
+  return resultCitations.slice(0, 10);
 }
 
 export async function listNotebookSources(notebookId: string) {

@@ -11,7 +11,7 @@ export function formatUpdatedAt(value: string | Date) {
 }
 
 export function formatMediaTimestamp(milliseconds: number | null | undefined) {
-  if (milliseconds == null || milliseconds < 0) return null;
+  if (milliseconds == null || milliseconds < 1000) return null;
   const totalSeconds = Math.floor(milliseconds / 1000);
   const minutes = Math.floor(totalSeconds / 60);
   return `${minutes}:${String(totalSeconds % 60).padStart(2, "0")}`;

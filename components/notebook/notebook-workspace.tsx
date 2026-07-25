@@ -86,5 +86,15 @@ export function NotebookWorkspace({ notebookId, title, description, sources, con
     highlightTimeoutRef.current = setTimeout(() => setHighlightedSourceIds([]), 2_500);
   };
 
-  return <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.35 }} className="min-h-svh bg-black text-white"><div className="mx-auto flex min-h-svh max-w-[1800px] flex-col lg:h-svh lg:max-h-svh lg:grid lg:grid-cols-[280px_minmax(0,1fr)] xl:grid-cols-[280px_minmax(0,1fr)_330px]"><NotebookSidebar title={title} conversations={filteredConversations} activeConversation={activeConversation ?? ""} search={search} onSearch={setSearch} onSelect={setActiveConversation} onNewChat={() => { void handleNewChat(); }} onRename={handleRename} onDelete={handleDelete} /><NotebookChat notebookId={notebookId} conversationId={currentConversation?.id ?? null} messages={currentMessages} hasSources={hasSources} onConversationCreated={handleConversationCreated} onConversationTitleChanged={handleConversationTitleChanged} onConversationUpdated={handleConversationUpdated} onCitationView={handleCitationView} onRefresh={() => router.refresh()} /><ContextPanel notebookId={notebookId} title={title} description={description} sources={sources} updatedAt={updatedAt} highlightedSourceIds={highlightedSourceIds} /></div></motion.div>;
+  const [summarySignal, setSummarySignal] = useState(0);
+
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.35 }} className="min-h-svh bg-black text-white">
+      <div className="mx-auto flex min-h-svh max-w-[1800px] flex-col lg:h-svh lg:max-h-svh lg:grid lg:grid-cols-[280px_minmax(0,1fr)] xl:grid-cols-[280px_minmax(0,1fr)_330px]">
+        <NotebookSidebar title={title} conversations={filteredConversations} activeConversation={activeConversation ?? ""} search={search} onSearch={setSearch} onSelect={setActiveConversation} onNewChat={() => { void handleNewChat(); }} onRename={handleRename} onDelete={handleDelete} />
+        <NotebookChat notebookId={notebookId} conversationId={currentConversation?.id ?? null} messages={currentMessages} hasSources={hasSources} summarySignal={summarySignal} onConversationCreated={handleConversationCreated} onConversationTitleChanged={handleConversationTitleChanged} onConversationUpdated={handleConversationUpdated} onCitationView={handleCitationView} onRefresh={() => router.refresh()} />
+        <ContextPanel notebookId={notebookId} title={title} description={description} sources={sources} updatedAt={updatedAt} highlightedSourceIds={highlightedSourceIds} onGenerateSummary={() => setSummarySignal((s) => s + 1)} />
+      </div>
+    </motion.div>
+  );
 }
