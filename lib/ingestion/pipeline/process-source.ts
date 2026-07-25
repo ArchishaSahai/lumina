@@ -42,7 +42,7 @@ export async function processSource(sourceId: string, options: ProcessSourceOpti
         data: { type, parsedText: parsed.text, processingError: "stage:EMBEDDING" },
       });
       return newChunks;
-    });
+    }, { maxWait: 15000, timeout: 60000 });
 
     await updateProcessingStage(source.id, "EMBEDDING");
     await upsertChunksToPinecone(createdChunks);

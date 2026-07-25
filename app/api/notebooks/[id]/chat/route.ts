@@ -2,10 +2,11 @@ import { streamText } from "ai";
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { buildGroundedPrompt, rewriteQuery, searchNotebookChunks, selectCitationsForAnswer } from "@/lib/ai/rag";
+import { buildGroundedPrompt, buildRetrievalPlan, listNotebookSources, rewriteQuery, searchNotebookChunks, selectCitationsForAnswer } from "@/lib/ai/rag";
 import { getChatModel } from "@/lib/ai/embeddings";
 import { appendMessage, createConversation } from "@/app/actions/chat";
 import { z } from "zod";
+import { sourceTypeLabel } from "@/lib/sources";
 
 const chatRequestSchema = z.object({
   conversationId: z.string().optional(),
@@ -23,10 +24,22 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const conversation = input.conversationId ? await prisma.conversation.findFirst({ where: { id: input.conversationId, notebookId } }) : await createConversation(notebookId, input.question.slice(0, 80));
   if (!conversation) return NextResponse.json({ error: "Conversation not found." }, { status: 404 });
 
+  const previousMessages = await prisma.message.findMany({ where: { conversationId: conversation.id }, orderBy: { createdAt: "asc" }, take: 12 });
+  const retrievalPlan = buildRetrievalPlan(input.question, previousMessages.map((message) => ({ role: message.role.toLowerCase(), content: message.content })));
   await appendMessage(conversation.id, notebookId, "USER", input.question);
-  const rewritten = await rewriteQuery(input.question);
-  const retrieved = await searchNotebookChunks(notebookId, rewritten, 6);
-  const prompt = buildGroundedPrompt(rewritten, retrieved);
+
+  if (retrievalPlan.intent === "list_sources") {
+    const sources = await listNotebookSources(notebookId);
+    const answer = sources.length ? `You have uploaded ${sources.length} source${sources.length === 1 ? "" : "s"}:\n\n${sources.map((source, index) => `${index + 1}. ${source.title} (${sourceTypeLabel(source.type)}, ${source.status.toLowerCase()}${source.url ? `, ${source.url}` : ""})`).join("\n")}` : "You have not uploaded any sources to this notebook yet.";
+    await appendMessage(conversation.id, notebookId, "ASSISTANT", answer, []);
+    const response = new Response(answer, { headers: { "Content-Type": "text/plain; charset=utf-8" } });
+    response.headers.set("x-lumina-citations", encodeURIComponent(JSON.stringify([])));
+    return response;
+  }
+
+  const rewritten = await rewriteQuery(retrievalPlan.query);
+  const retrieved = await searchNotebookChunks(notebookId, rewritten, retrievalPlan);
+  const prompt = buildGroundedPrompt(rewritten, retrieved, retrievalPlan.intent);
 
   const result = streamText({
     model: getChatModel(),
@@ -37,7 +50,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   });
 
   const response = result.toTextStreamResponse();
-  const citations = retrieved.slice(0, 3).map((chunk) => ({ sourceId: chunk.sourceId, sourceTitle: chunk.title, sourceType: chunk.source.type, sourceUrl: chunk.source.url, chunkId: chunk.id, preview: chunk.text.slice(0, 220), timestampStartMs: chunk.timestampStartMs, timestampEndMs: chunk.timestampEndMs }));
+  const headerCitations = selectCitationsForAnswer(rewritten, retrieved);
+  const citations = headerCitations.slice(0, retrievalPlan.broad ? 5 : 3).map((chunk) => ({ sourceId: chunk.sourceId, sourceTitle: chunk.title, sourceType: chunk.source.type, sourceUrl: chunk.source.url, chunkId: chunk.id, preview: chunk.text.slice(0, 220), timestampStartMs: chunk.timestampStartMs, timestampEndMs: chunk.timestampEndMs }));
   response.headers.set("x-lumina-citations", encodeURIComponent(JSON.stringify(citations)));
   return response;
 }

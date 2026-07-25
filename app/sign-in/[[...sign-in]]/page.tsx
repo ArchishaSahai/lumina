@@ -1,16 +1,16 @@
-import { SignUp } from "@clerk/nextjs";
+import { SignIn } from "@clerk/nextjs";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 
-export default function SignUpPage() {
+export default function SignInPage() {
   return (
     <main className="grid min-h-svh place-items-center bg-black px-4 py-10">
       <div className="grid gap-4">
-        <SignUp fallbackRedirectUrl="/dashboard" signInUrl="/sign-in" />
+        <SignIn fallbackRedirectUrl="/dashboard" signUpUrl="/sign-up" />
         <div className="rounded-lg border border-white/[.1] bg-white/[.04] p-4 text-center">
-          <p className="text-sm text-zinc-300">An account already exists. Sign in instead.</p>
+          <p className="text-sm text-zinc-300">No account found. Create one?</p>
           <Button asChild className="mt-3 w-full bg-violet-500 text-white hover:bg-violet-400">
-            <Link href="/sign-in">Sign In</Link>
+            <Link href="/sign-up">Sign Up</Link>
           </Button>
         </div>
       </div>

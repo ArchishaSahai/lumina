@@ -4,7 +4,12 @@ import { embedText } from "./embeddings";
 import { getPineconeIndex } from "./pinecone";
 
 export type RetrievedChunk = SourceChunk & { score: number; source: { id: string; type: SourceType; url: string | null; filePath: string | null } };
-type SearchDb = { sourceChunk: { findMany(args: { where: { id: { in: string[] } }; include: { source: true } }): Promise<RetrievedChunk[]> } };
+export type QueryIntent = "overview" | "summarization" | "specific" | "comparison" | "follow_up" | "explanation" | "study_guide" | "list_sources";
+export type RetrievalPlan = { intent: QueryIntent; query: string; limit: number; topK: number; broad: boolean };
+type SearchDb = {
+  source: { findMany(args: { where: { notebookId: string }; orderBy?: { createdAt: "asc" | "desc" }; select: { id: true; title: true; type: true; status: true; url: true; createdAt: true } }): Promise<Array<{ id: string; title: string; type: SourceType; status: string; url: string | null; createdAt: Date }>> };
+  sourceChunk: { findMany(args: { where: { id?: { in: string[] }; notebookId?: string }; include: { source: true }; orderBy?: { chunkIndex: "asc" }; take?: number }): Promise<RetrievedChunk[]> };
+};
 const db = prisma as unknown as SearchDb;
 
 export function formatChunkCitation(chunk: { title: string; timestampStartMs: number | null }) {
@@ -37,11 +42,58 @@ export async function rewriteQuery(question: string) {
   return question.trim();
 }
 
+export function classifyQueryIntent(question: string, history: Array<{ role: string; content: string }> = []): QueryIntent {
+  const normalized = question.toLowerCase().trim();
+  if (/\b(what (have|did) i upload|uploaded resources?|list (my |the )?(sources|resources|uploads)|show (my |the )?(sources|resources|uploads))\b/.test(normalized)) return "list_sources";
+  if (/\b(compare|contrast|versus| vs\.? |differences?|similarities?|which is better|pros and cons)\b/.test(normalized)) return "comparison";
+  if (/\b(study guide|study notes|revision notes|flashcards?|outline|quiz me|key takeaways|important concepts?)\b/.test(normalized)) return "study_guide";
+  if (/\b(summarize|summary|tl;?dr|recap|condense|main points?)\b/.test(normalized)) return "summarization";
+  if (
+    /\b(overview|gist|everything|notebook-wide|what topics)\b/.test(normalized) ||
+    /\b(wha[it]|wht|what) (is|are|was|were) (being )?(discussed|talked about|covered|explained|mentioned|shown)\b/.test(normalized) ||
+    /\b(wha[it]|wht|what) (is|are) (this|the|my) (video|videos|pdf|pdfs|document|documents|source|sources|notebook|file|files) (about|discussing|covering|talking about)\b/.test(normalized) ||
+    /\bwhat do (these|the|my) (resources|notes|uploads|documents|video|videos|files) (tell|say|discuss|cover)\b/.test(normalized) ||
+    /\b(tell|explain) (me )?about (this|the|my) (video|videos|pdf|document|source|notebook)\b/.test(normalized)
+  ) return "overview";
+  if (/\b(explain|why|how does|walk me through|teach me)\b/.test(normalized)) return "explanation";
+  if (history.length && /^(it|that|this|they|those|them|he|she|and|also|what about|how about|why|how|where|when)\b/.test(normalized)) return "follow_up";
+  return "specific";
+}
+
+export function buildRetrievalPlan(question: string, history: Array<{ role: string; content: string }> = []): RetrievalPlan {
+  const intent = classifyQueryIntent(question, history);
+  const historyContext = history.slice(-6).map((message) => `${message.role}: ${message.content}`).join("\n");
+  const query = intent === "follow_up" && historyContext ? `${historyContext}\nuser: ${question}` : question.trim();
+  const broad = ["overview", "summarization", "study_guide", "list_sources"].includes(intent);
+  const limitByIntent: Record<QueryIntent, number> = { overview: 10, summarization: 10, specific: 5, comparison: 8, follow_up: 6, explanation: 6, study_guide: 10, list_sources: 0 };
+  const limit = limitByIntent[intent];
+  return { intent, query, limit, topK: broad ? 40 : Math.max(limit * 4, 12), broad };
+}
+
 const minimumSimilarity = 0.45;
 
+const stopwords = new Set([
+  "the", "be", "to", "of", "and", "a", "in", "that", "have", "i", "it", "for", "not", "on", "with", "he", "as", "you", "do", "at",
+  "this", "but", "his", "by", "from", "they", "we", "say", "her", "she", "or", "an", "will", "my", "one", "all", "would", "there",
+  "their", "what", "so", "up", "out", "if", "about", "who", "get", "which", "go", "me", "when", "make", "can", "like", "time", "no",
+  "just", "him", "know", "take", "people", "into", "year", "your", "good", "some", "could", "them", "see", "other", "than", "then",
+  "now", "look", "only", "come", "its", "over", "think", "also", "back", "after", "use", "two", "how", "our", "work", "first",
+  "है", "हैं", "था", "थी", "थे", "एक", "और", "में", "पर", "से", "का", "के", "की", "को", "यह", "वह", "ये", "वे", "जो", "कि",
+  "ने", "भी", "तो", "ही", "क्या", "हो", "हुआ", "हुए", "होने", "कर", "करने", "करता", "करती", "करते", "करत", "अपने", "अपनी", "अपना",
+  "साथ", "तक", "दिया", "लिया", "गया", "नही", "नहीं", "दिस", "डेट", "इस", "उस", "बात", "आज", "हम", "आप", "दोस्तों", "वीडियो",
+  "होता", "होते", "होती", "होना", "रहा", "रहे", "रही", "जाता", "जाते", "जाती", "दिए", "दिये", "लिए", "लिये", "अलग", "तरह", "काम",
+  "hai", "hain", "tha", "thi", "the", "ek", "aur", "mein", "par", "se", "ka", "ke", "ki", "ko", "yeh", "woh", "kya", "bhi",
+  "kar", "karna", "karte", "aap", "hum", "dosto", "video", "baat", "aaj", "is", "us"
+]);
+
 function termOverlap(left: string, right: string) {
-  const leftTerms = new Set(left.toLowerCase().match(/[\p{L}\p{N}]{3,}/gu) ?? []);
-  const rightTerms = new Set(right.toLowerCase().match(/[\p{L}\p{N}]{3,}/gu) ?? []);
+  const leftTerms = new Set(
+    (left.toLowerCase().match(/[\p{L}\p{N}]{3,}/gu) ?? []).filter((term) => !stopwords.has(term))
+  );
+  const rightTerms = new Set(
+    (right.toLowerCase().match(/[\p{L}\p{N}]{3,}/gu) ?? []).filter((term) => !stopwords.has(term))
+  );
+  if (!leftTerms.size || !rightTerms.size) return 0;
   const shared = [...leftTerms].filter((term) => rightTerms.has(term)).length;
   return shared / Math.max(1, Math.min(leftTerms.size, rightTerms.size));
 }
@@ -63,11 +115,37 @@ function rerankChunks(chunks: RetrievedChunk[], limit: number) {
   return selected;
 }
 
-export async function searchNotebookChunks(notebookId: string, query: string, limit = 5) {
+function sourceDiverseChunks(chunks: RetrievedChunk[], limit: number) {
+  const bySource = new Map<string, RetrievedChunk[]>();
+  for (const chunk of chunks) {
+    const sourceChunks = bySource.get(chunk.sourceId) ?? [];
+    sourceChunks.push(chunk);
+    bySource.set(chunk.sourceId, sourceChunks);
+  }
+  const selected: RetrievedChunk[] = [];
+  while (selected.length < limit && [...bySource.values()].some((items) => items.length)) {
+    for (const items of bySource.values()) {
+      const next = items.shift();
+      if (next) selected.push(next);
+      if (selected.length >= limit) break;
+    }
+  }
+  return rerankChunks(selected, limit);
+}
+
+async function representativeNotebookChunks(notebookId: string, limit: number) {
+  const chunks = await db.sourceChunk.findMany({ where: { notebookId }, include: { source: true }, orderBy: { chunkIndex: "asc" }, take: 80 });
+  return sourceDiverseChunks(chunks.map((chunk) => ({ ...chunk, score: 0.1 })), limit);
+}
+
+export async function searchNotebookChunks(notebookId: string, query: string, planOrLimit: RetrievalPlan | number = 5) {
+  const plan = typeof planOrLimit === "number" ? { intent: "specific" as const, query, limit: planOrLimit, topK: Math.max(planOrLimit * 3, 10), broad: false } : planOrLimit;
+  if (plan.limit <= 0) return [];
   const index = getPineconeIndex();
   const embedding = await embedText(query);
-  const result = await index.namespace("chunks").query({ vector: embedding, topK: Math.max(limit * 3, 10), includeMetadata: true, filter: { notebookId: { $eq: notebookId } } });
-  const matches = result.matches.filter((match) => (match.score ?? 0) >= minimumSimilarity);
+  const result = await index.namespace("chunks").query({ vector: embedding, topK: plan.topK, includeMetadata: true, filter: { notebookId: { $eq: notebookId } } });
+  const threshold = plan.broad ? 0.25 : minimumSimilarity;
+  const matches = result.matches.filter((match) => (match.score ?? 0) >= threshold);
   const chunkIds = matches.map((match) => match.id);
   const chunks = await db.sourceChunk.findMany({ where: { id: { in: chunkIds } }, include: { source: true } });
   const candidates = chunkIds.map((id, position) => {
@@ -75,15 +153,47 @@ export async function searchNotebookChunks(notebookId: string, query: string, li
     if (!chunk) return null;
     return { ...chunk, score: matches[position]?.score ?? 0 };
   }).filter(Boolean) as RetrievedChunk[];
-  return rerankChunks(candidates, limit);
+  const ranked = plan.broad ? sourceDiverseChunks(candidates, plan.limit) : rerankChunks(candidates, plan.limit);
+  if (ranked.length >= Math.min(3, plan.limit) || (!plan.broad && ranked.length > 0)) return ranked;
+  const fallbacks = await representativeNotebookChunks(notebookId, plan.limit);
+  return sourceDiverseChunks([...ranked, ...fallbacks], plan.limit);
 }
 
-export function buildGroundedPrompt(question: string, chunks: RetrievedChunk[]) {
+export function buildGroundedPrompt(question: string, chunks: RetrievedChunk[], intent: QueryIntent = "specific") {
   const context = chunks.map((chunk) => `${chunk.title}${chunk.timestampStartMs != null ? ` (${formatTimestamp(chunk.timestampStartMs)})` : ""}\n${chunk.text}`).join("\n\n");
-  return `Answer the question using only the context below. Do not mention source labels, citation markers, or references; Lumina renders supporting sources separately. If the context does not answer the question, say so plainly.\n\nContext:\n${context}\n\nQuestion: ${question}`;
+  const overviewGuidance = ["overview", "summarization", "study_guide"].includes(intent) ? " The user is asking broadly across the notebook, so synthesize themes from all provided context instead of narrowing to one phrase match." : "";
+  const isHindiOrHinglish = /[\u0900-\u097F]|\b(kya|hai|kaise|ko|ka|ke|ki|batao|matlab|mein|se|ye|woh|kab|kahan|kyun|bhi|hain|kisi|par)\b/i.test(question);
+  const languageGuidance = isHindiOrHinglish
+    ? " IMPORTANT: The user asked in Hindi/Hinglish. Respond in Hinglish (Hindi written in Roman/Latin script, e.g., 'ARP (Address Resolution Protocol) networking mein use hone wala protocol hai...'). Do NOT use Devanagari script."
+    : "";
+  return `Answer the question using only the context below.${overviewGuidance}${languageGuidance} Do not mention source labels, citation markers, or references; Lumina renders supporting sources separately. If the context does not answer the question, say so plainly.\n\nContext:\n${context}\n\nQuestion: ${question}`;
+}
+
+export function isNegativeResponse(answer: string): boolean {
+  const normalized = answer.toLowerCase();
+  return (
+    /does not (contain|provide|mention|have|specify)|no (information|mention|context|data)|cannot (be )?answer|not mentioned|not provided|unclear from context|plainly/i.test(normalized) ||
+    /jankari (nahi|nhi)|pata (nahi|nhi)|kuch (nahi|nhi)|zikr (nahi|nhi)|context (mein|me).*nahi|di gayi/i.test(normalized)
+  );
 }
 
 export function selectCitationsForAnswer(answer: string, chunks: RetrievedChunk[]) {
-  const usedChunks = chunks.filter((chunk) => termOverlap(answer, chunk.text) >= 0.08);
-  return usedChunks.slice(0, 3);
+  if (isNegativeResponse(answer)) return [];
+
+  const candidates = chunks
+    .map((chunk) => {
+      const overlap = termOverlap(answer, chunk.text);
+      const isVectorMatch = chunk.score >= 0.50;
+      const isOverlapMatch = overlap >= 0.18;
+      const relevanceScore = isVectorMatch ? chunk.score + overlap : isOverlapMatch ? overlap : 0;
+      return { chunk, isRelevant: isVectorMatch || isOverlapMatch, relevanceScore };
+    })
+    .filter((item) => item.isRelevant)
+    .sort((a, b) => b.relevanceScore - a.relevanceScore);
+
+  return candidates.map((item) => item.chunk).slice(0, 3);
+}
+
+export async function listNotebookSources(notebookId: string) {
+  return db.source.findMany({ where: { notebookId }, orderBy: { createdAt: "asc" }, select: { id: true, title: true, type: true, status: true, url: true, createdAt: true } });
 }
