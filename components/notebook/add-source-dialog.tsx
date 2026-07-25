@@ -13,7 +13,6 @@ import type { NotebookSource } from "@/lib/sources";
 
 type Stage = "Uploading" | "Extracting" | "Chunking" | "Embedding" | "Indexing" | null;
 type Props = { notebookId: string; open: boolean; onOpenChange: (open: boolean) => void; onSourceAdded: (source: NotebookSource) => void };
-const stages = ["Uploading", "Extracting", "Chunking", "Embedding", "Indexing", "Ready"];
 
 export function AddSourceDialog({ notebookId, open, onOpenChange, onSourceAdded }: Props) {
   const [file, setFile] = useState<File | null>(null);
