@@ -136,6 +136,32 @@
 a[href], button { cursor: pointer; }
 a[href]:focus-visible, button:focus-visible { outline: 2px solid rgb(167 139 250 / .9); outline-offset: 3px; }
 
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(139 92 246 / .48) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgb(167 139 250 / .72), rgb(109 40 217 / .62));
+  background-clip: padding-box;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: rgb(167 139 250 / .88);
+  background-clip: padding-box;
+}
+
 @keyframes drift { 0%, 100% { transform: translate3d(0, 0, 0); } 50% { transform: translate3d(0, -13px, 0); } }
 @keyframes pulse-glow { 0%, 100% { opacity: .55; transform: scale(.92); } 50% { opacity: .9; transform: scale(1.08); } }
 @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }

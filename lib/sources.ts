@@ -9,12 +9,14 @@ export type NotebookSource = {
   filePath: string | null;
   url: string | null;
   createdAt: string;
+  processedAt: string | null;
+  processingError: string | null;
 };
 
 export function serializeSource(source: PrismaSource): NotebookSource {
-  return { ...source, createdAt: source.createdAt.toISOString() };
+  return { ...source, createdAt: source.createdAt.toISOString(), processedAt: source.processedAt?.toISOString() ?? null };
 }
 
 export function sourceTypeLabel(type: SourceType) {
-  return { PDF: "PDF", YOUTUBE: "YouTube", WEBSITE: "Website", MARKDOWN: "Markdown", TEXT: "Text", VTT: "Transcript" }[type];
+  return { PDF: "PDF", YOUTUBE: "YouTube", WEBSITE: "Website", MARKDOWN: "Markdown", TEXT: "TXT", VTT: "VTT" }[type];
 }

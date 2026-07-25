@@ -13,8 +13,9 @@ export const websiteParser: SourceParser = {
     if (!contentType.includes("text/html") && !contentType.includes("text/plain")) throw new Error("Website did not return readable HTML or text.");
     const html = await response.text();
     const $ = load(html);
-    $("script, style, noscript, svg, canvas, nav, footer, form").remove();
-    const root = $("article").first().length ? $("article").first() : $("main").first().length ? $("main").first() : $("body");
+    $("script, style, noscript, svg, canvas, nav, footer, header, form, aside, menu, dialog, iframe, [role=navigation], [role=banner], [role=contentinfo], .nav, .navbar, .menu, .sidebar, .footer, .header, .advertisement, .ad, .ads, .cookie, .newsletter, .social, .share, .comments, .related").remove();
+    const root = $("article").first().length ? $("article").first() : $("main").first().length ? $("main").first() : $("[role=main]").first().length ? $("[role=main]").first() : $("body");
+    root.find("[hidden], [aria-hidden=true]").remove();
     root.find("br").replaceWith("\n");
     root.find("p, h1, h2, h3, h4, h5, h6, li, blockquote, pre").each((_, element) => { $(element).append("\n\n"); });
     const text = normalizeText(root.text());

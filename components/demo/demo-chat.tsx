@@ -1,0 +1,7 @@
+"use client";
+import { motion } from "framer-motion";
+import { LoaderCircle } from "lucide-react";
+import type { DemoScenario } from "./demo-data";
+import { DemoCitations } from "./demo-citations";
+import { DemoInput } from "./demo-input";
+export function DemoChat({ scenario, input, onInput, onSubmit, phase, onSource }: { scenario: DemoScenario; input: string; onInput: (value: string) => void; onSubmit: () => void; phase: "idle" | "searching" | "finding" | "answer"; onSource: (source: string) => void }) { return <div className="flex min-h-[390px] min-w-0 flex-1 flex-col p-4 sm:p-6"><div className="flex-1"><div className="rounded-2xl border border-violet-300/15 bg-violet-500/[.08] p-4 text-sm leading-6 text-violet-100">{scenario.question}</div>{phase !== "idle" && phase !== "answer" && <div className="mt-5 flex items-center gap-2 text-sm text-zinc-500"><LoaderCircle className="size-4 animate-spin text-violet-300" /> {phase === "searching" ? "Searching notebook..." : "Finding relevant chunks..."}</div>}{phase === "answer" && <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="pt-5"><p className="text-sm leading-7 text-zinc-300">{scenario.answer}</p><div className="mt-5"><DemoCitations citations={scenario.citations} onSelect={onSource} /></div></motion.div>}</div><DemoInput value={input} onChange={onInput} onSubmit={onSubmit} busy={phase !== "idle"} /></div>; }

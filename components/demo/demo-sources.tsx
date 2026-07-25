@@ -1,0 +1,5 @@
+"use client";
+import { FileCode2, FileText, Film } from "lucide-react";
+import { motion } from "framer-motion";
+const icons = [FileText, Film, FileText, FileCode2];
+export function DemoSources({ active, onSelect }: { active: string | null; onSelect: (source: string) => void }) { return <aside className="hidden w-56 shrink-0 border-r border-white/[.08] bg-black/20 p-4 sm:block"><p className="text-[10px] font-semibold uppercase tracking-[.18em] text-zinc-500">Sources</p><div className="mt-4 space-y-1.5">{["Neural Networks.pdf", "Lecture 08.vtt", "Attention Is All You Need.pdf", "System Design.md"].map((source, index) => { const Icon = icons[index]; return <motion.button whileHover={{ x: 3 }} type="button" key={source} onClick={() => onSelect(source)} className={`flex w-full items-center gap-2 rounded-xl p-2.5 text-left text-xs transition-colors ${active === source ? "bg-violet-400/[.14] text-violet-100" : "text-zinc-400 hover:bg-white/[.05] hover:text-zinc-200"}`}><Icon className="size-4 shrink-0 text-violet-300" /><span className="min-w-0 flex-1 truncate">{source}</span></motion.button>; })}</div></aside>; }
