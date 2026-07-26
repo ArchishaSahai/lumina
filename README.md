@@ -14,6 +14,9 @@
 
 </div>
 
+Demo Video:https://youtu.be/9pY9-hPYbCA
+Link:https://lumina-smoky-eta.vercel.app/
+
 ```mermaid
 flowchart TB
   U["User sources<br/>PDFs | YouTube | Websites | Markdown"] --> N["Lumina notebooks"]
