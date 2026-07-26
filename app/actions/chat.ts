@@ -11,7 +11,7 @@ type ChatDb = {
   conversation: {
     findMany(args: unknown): Promise<ConversationRecord[]>;
     findFirst(args: { where: { id: string } }): Promise<ConversationRecord | null>;
-    create(args: { data: { notebookId: string; title: string } }): Promise<ConversationRecord>;
+    create(args: { data: { notebookId: string; title: string; type?: "NOTEBOOK" | "ROADMAP" } }): Promise<ConversationRecord>;
     update(args: { where: { id: string }; data: { title?: string; updatedAt?: Date } }): Promise<ConversationRecord>;
     delete(args: { where: { id: string } }): Promise<ConversationRecord>;
   };
@@ -28,14 +28,14 @@ async function getOwnedNotebook(notebookId: string) {
   return notebook;
 }
 
-export async function listNotebookConversations(notebookId: string) {
+export async function listNotebookConversations(notebookId: string, type: "NOTEBOOK" | "ROADMAP" = "NOTEBOOK") {
   await getOwnedNotebook(notebookId);
-  return db.conversation.findMany({ where: { notebookId }, orderBy: { updatedAt: "desc" }, include: { messages: { orderBy: { createdAt: "asc" } } } });
+  return db.conversation.findMany({ where: { notebookId, type }, orderBy: { updatedAt: "desc" }, include: { messages: { orderBy: { createdAt: "asc" } } } });
 }
 
-export async function createConversation(notebookId: string, title = "Untitled chat") {
+export async function createConversation(notebookId: string, title = "Untitled chat", type: "NOTEBOOK" | "ROADMAP" = "NOTEBOOK") {
   await getOwnedNotebook(notebookId);
-  const conversation = await db.conversation.create({ data: { notebookId, title } });
+  const conversation = await db.conversation.create({ data: { notebookId, title, type } });
   revalidatePath(`/dashboard/notebooks/${notebookId}`);
   return conversation;
 }
@@ -51,8 +51,8 @@ function summarizePrompt(prompt: string) {
   return words.join(" ") || "Untitled chat";
 }
 
-export async function createConversationForPrompt(notebookId: string, prompt: string) {
-  return createConversation(notebookId, summarizePrompt(prompt));
+export async function createConversationForPrompt(notebookId: string, prompt: string, type: "NOTEBOOK" | "ROADMAP" = "NOTEBOOK") {
+  return createConversation(notebookId, summarizePrompt(prompt), type);
 }
 
 export async function renameConversation(conversationId: string, title: string) {

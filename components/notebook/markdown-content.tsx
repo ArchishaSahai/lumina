@@ -9,18 +9,45 @@ function renderInline(text: string): ReactNode[] {
 }
 
 export function MarkdownContent({ content }: { content: string }) {
-  const blocks = content.replace(/\[Source\s+\d+\]/gi, "").trim().split(/\n{2,}/);
+  const cleanedContent = content.replace(/```json[\s\S]*?```/g, (match) => {
+    try {
+      const raw = match.replace(/^```json\s*/, "").replace(/\s*```$/, "");
+      const obj = JSON.parse(raw);
+      if (obj && typeof obj === "object") {
+        if (obj.overview) return obj.overview;
+        if (obj.title) return `**${obj.title}**`;
+      }
+    } catch {}
+    return "";
+  });
 
-  return <div className="space-y-3">{blocks.map((block, index) => {
-    if (block.startsWith("```") && block.endsWith("```")) return <pre key={index} className="overflow-x-auto rounded-xl bg-black/45 p-3 text-xs leading-5 text-zinc-200"><code>{block.replace(/^```[^\n]*\n?/, "").replace(/```$/, "")}</code></pre>;
-    const heading = block.match(/^(#{1,3})\s+(.+)/);
-    if (heading) {
-      const headingClass = heading[1].length === 1 ? "text-lg" : heading[1].length === 2 ? "text-base" : "text-sm";
-      return <p key={index} className={`${headingClass} font-semibold tracking-tight text-white`}>{renderInline(heading[2])}</p>;
-    }
-    const lines = block.split("\n");
-    if (lines.every((line) => /^\s*[-*+]\s+/.test(line))) return <ul key={index} className="list-disc space-y-1 pl-5">{lines.map((line, lineIndex) => <li key={lineIndex}>{renderInline(line.replace(/^\s*[-*+]\s+/, ""))}</li>)}</ul>;
-    if (lines.every((line) => /^\s*\d+\.\s+/.test(line))) return <ol key={index} className="list-decimal space-y-1 pl-5">{lines.map((line, lineIndex) => <li key={lineIndex}>{renderInline(line.replace(/^\s*\d+\.\s+/, ""))}</li>)}</ol>;
-    return <p key={index} className="whitespace-pre-wrap">{renderInline(block)}</p>;
-  })}</div>;
+  const blocks = cleanedContent.replace(/\[Source\s+\d+\]/gi, "").trim().split(/\n{2,}/);
+
+  return (
+    <div className="space-y-3 text-sm leading-relaxed">
+      {blocks.map((block, index) => {
+        if (block.startsWith("```") && block.endsWith("```")) {
+          const lang = block.match(/^```([a-zA-Z0-9_-]+)/)?.[1] || "";
+          if (lang.toLowerCase() === "json") {
+            return null;
+          }
+          return (
+            <pre key={index} className="overflow-x-auto rounded-xl bg-black/45 p-3 text-xs leading-5 text-zinc-200">
+              <code>{block.replace(/^```[^\n]*\n?/, "").replace(/```$/, "")}</code>
+            </pre>
+          );
+        }
+        const heading = block.match(/^(#{1,3})\s+(.+)/);
+        if (heading) {
+          const headingClass = heading[1].length === 1 ? "text-lg sm:text-xl font-bold" : heading[1].length === 2 ? "text-base font-semibold" : "text-sm font-semibold";
+          return <p key={index} className={`${headingClass} tracking-tight text-white mt-2`}>{renderInline(heading[2])}</p>;
+        }
+        const lines = block.split("\n");
+        if (lines.every((line) => /^\s*[-*+]\s+/.test(line))) return <ul key={index} className="list-disc space-y-1.5 pl-5 text-zinc-300">{lines.map((line, lineIndex) => <li key={lineIndex}>{renderInline(line.replace(/^\s*[-*+]\s+/, ""))}</li>)}</ul>;
+        if (lines.every((line) => /^\s*\d+\.\s+/.test(line))) return <ol key={index} className="list-decimal space-y-1.5 pl-5 text-zinc-300">{lines.map((line, lineIndex) => <li key={lineIndex}>{renderInline(line.replace(/^\s*\d+\.\s+/, ""))}</li>)}</ol>;
+        return <p key={index} className="whitespace-pre-wrap">{renderInline(block)}</p>;
+      })}
+    </div>
+  );
 }
+

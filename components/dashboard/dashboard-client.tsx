@@ -30,7 +30,81 @@ export function DashboardClient({ notebooks }: { notebooks: Notebook[] }) {
   const handleRenameNotebook = async (id: string, title: string) => { const previousNotebooks = notebookList; setNotebookList((current) => current.map((notebook) => notebook.id === id ? { ...notebook, title, updatedAt: new Date().toISOString() } : notebook)); try { await renameNotebook(id, { title }); toast.success("Notebook renamed"); router.refresh(); } catch (error) { setNotebookList(previousNotebooks); toast.error("Unable to rename notebook"); throw error; } };
   const handleDeleteNotebook = async (id: string) => { const previousNotebooks = notebookList; setNotebookList((current) => current.filter((notebook) => notebook.id !== id)); try { await deleteNotebook(id); toast.success("Notebook deleted"); router.refresh(); } catch (error) { setNotebookList(previousNotebooks); toast.error("Unable to delete notebook"); throw error; } };
 
-  return <main className="min-h-svh bg-black text-white"><header className="border-b border-white/[.08] bg-black/70 backdrop-blur-xl"><div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-4 sm:px-6"><a href="/dashboard" className="cursor-pointer rounded-sm text-lg font-semibold tracking-[-.04em] outline-none transition-colors hover:text-violet-200 focus-visible:ring-2 focus-visible:ring-violet-400/70">Lumina</a><div className="flex items-center gap-3"><div className="hidden text-right sm:block"><p className="text-sm font-medium">{user?.fullName ?? "Lumina member"}</p><p className="text-xs text-zinc-500">Your workspace</p></div><DropdownMenu><DropdownMenuTrigger asChild><button type="button" aria-label="Open account menu" className="cursor-pointer rounded-full outline-none transition-transform hover:scale-105 focus-visible:ring-2 focus-visible:ring-violet-400/70"><Avatar><AvatarImage src={user?.imageUrl} alt="Your profile" /><AvatarFallback className="bg-violet-500/20 text-violet-200">{initials}</AvatarFallback></Avatar></button></DropdownMenuTrigger><DropdownMenuContent align="end" className="min-w-44 border border-white/[.1] bg-zinc-950 p-1 text-white shadow-xl"><DropdownMenuLabel className="px-2 py-1.5 text-zinc-400">{user?.fullName ?? "Lumina member"}</DropdownMenuLabel><DropdownMenuSeparator className="bg-white/[.08]" /><DropdownMenuItem onSelect={() => signOut({ redirectUrl: "/" })} className="cursor-pointer px-2 py-2 text-zinc-300 focus:bg-white/[.08] focus:text-white"><LogOut className="size-4" /> Log out</DropdownMenuItem></DropdownMenuContent></DropdownMenu></div></div></header><div className="mx-auto max-w-6xl px-4 py-12 sm:px-6 sm:py-16"><div className="flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between"><div><p className="text-xs font-semibold uppercase tracking-[.22em] text-violet-300">Your workspace</p><h1 className="mt-3 font-heading text-4xl font-semibold tracking-[-.055em] sm:text-5xl">{greeting.heading}</h1><p className="mt-3 max-w-xl text-zinc-400">{greeting.subheading}</p></div><Button size="lg" onClick={() => setDialogOpen(true)} className="bg-violet-500 text-white shadow-[0_0_28px_rgba(139,92,246,.28)] hover:bg-violet-400"><Plus className="size-4" /> Create notebook</Button></div>{hasNotebooks ? <><div className="relative mt-10 max-w-xl"><Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-zinc-500" /><Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search notebooks" className="h-11 border-white/[.12] bg-white/[.045] pl-10 text-white placeholder:text-zinc-600 focus-visible:border-violet-400" /></div>{visibleNotebooks.length > 0 ? <DashboardSection notebooks={visibleNotebooks} onRename={handleRenameNotebook} onDelete={handleDeleteNotebook} /> : <p className="mt-14 rounded-2xl border border-dashed border-white/[.12] px-5 py-10 text-sm text-zinc-500">No notebooks match your search.</p>}</> : <EmptyState onCreate={() => setDialogOpen(true)} />}<CreateNotebookDialog open={dialogOpen} onOpenChange={setDialogOpen} onCreate={handleCreateNotebook} /></div></main>;
+  return (
+    <main className="min-h-svh bg-black text-white">
+      <header className="border-b border-white/[.08] bg-black/70 backdrop-blur-xl">
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-4 sm:px-6">
+          <div className="flex items-center gap-6">
+            <a href="/dashboard" className="cursor-pointer text-lg font-semibold tracking-[-.04em] text-white hover:text-violet-200">
+              Lumina
+            </a>
+            <nav className="flex items-center gap-1 rounded-full border border-white/10 bg-white/[0.04] p-1 text-xs">
+              <a href="/dashboard" className="rounded-full bg-violet-500/20 px-3 py-1.5 font-medium text-white shadow-[0_0_12px_rgba(139,92,246,0.3)]">
+                Notebooks
+              </a>
+              <a href="/dashboard/roadmaps" className="rounded-full px-3 py-1.5 font-medium text-zinc-400 transition-colors hover:text-white">
+                Roadmaps
+              </a>
+            </nav>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <div className="hidden text-right sm:block">
+              <p className="text-sm font-medium">{user?.fullName ?? "Lumina member"}</p>
+              <p className="text-xs text-zinc-500">Your workspace</p>
+            </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button type="button" aria-label="Open account menu" className="cursor-pointer rounded-full outline-none hover:scale-105">
+                  <Avatar>
+                    <AvatarImage src={user?.imageUrl} alt="Your profile" />
+                    <AvatarFallback className="bg-violet-500/20 text-violet-200">{initials}</AvatarFallback>
+                  </Avatar>
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="min-w-44 border border-white/[.1] bg-zinc-950 p-1 text-white shadow-xl">
+                <DropdownMenuLabel className="px-2 py-1.5 text-zinc-400">{user?.fullName ?? "Lumina member"}</DropdownMenuLabel>
+                <DropdownMenuSeparator className="bg-white/[.08]" />
+                <DropdownMenuItem onSelect={() => signOut({ redirectUrl: "/" })} className="cursor-pointer px-2 py-2 text-zinc-300 focus:bg-white/[.08] focus:text-white">
+                  <LogOut className="size-4" /> Log out
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </div>
+      </header>
+
+      <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6 sm:py-16">
+        <div className="flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[.22em] text-violet-300">Your workspace</p>
+            <h1 className="mt-3 font-heading text-4xl font-semibold tracking-[-.055em] sm:text-5xl">{greeting.heading}</h1>
+            <p className="mt-3 max-w-xl text-zinc-400">{greeting.subheading}</p>
+          </div>
+          <Button size="lg" onClick={() => setDialogOpen(true)} className="bg-violet-500 text-white shadow-[0_0_28px_rgba(139,92,246,.28)] hover:bg-violet-400">
+            <Plus className="size-4" /> Create notebook
+          </Button>
+        </div>
+
+        {hasNotebooks ? (
+          <>
+            <div className="relative mt-10 max-w-xl">
+              <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-zinc-500" />
+              <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search notebooks" className="h-11 border-white/[.12] bg-white/[.045] pl-10 text-white placeholder:text-zinc-600 focus-visible:border-violet-400" />
+            </div>
+            {visibleNotebooks.length > 0 ? (
+              <DashboardSection notebooks={visibleNotebooks} onRename={handleRenameNotebook} onDelete={handleDeleteNotebook} />
+            ) : (
+              <p className="mt-14 rounded-2xl border border-dashed border-white/[.12] px-5 py-10 text-sm text-zinc-500">No notebooks match your search.</p>
+            )}
+          </>
+        ) : (
+          <EmptyState onCreate={() => setDialogOpen(true)} />
+        )}
+        <CreateNotebookDialog open={dialogOpen} onOpenChange={setDialogOpen} onCreate={handleCreateNotebook} />
+      </div>
+    </main>
+  );
 }
 
 function DashboardSection({ notebooks, onRename, onDelete }: { notebooks: Notebook[]; onRename: (id: string, title: string) => Promise<void>; onDelete: (id: string) => Promise<void> }) {

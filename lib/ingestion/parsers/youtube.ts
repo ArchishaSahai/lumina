@@ -404,7 +404,7 @@ export async function fetchTrackSegments(track: CaptionTrack, videoId?: string):
     kind: track.kind,
     vssId: track.vssId,
     name: track.name?.simpleText ?? track.name,
-    isTranslatable: (track as any).isTranslatable ?? false,
+    isTranslatable: (track as Record<string, unknown>).isTranslatable ?? false,
   });
 
   const candidateUrls: Array<{ url: string; fmtLabel: string }> = [];
@@ -485,7 +485,7 @@ export async function fetchTrackSegments(track: CaptionTrack, videoId?: string):
       const items = await YoutubeTranscript.fetchTranscript(vId, { lang: track.languageCode });
       if (items && items.length > 0) {
         console.info(`YoutubeTranscript fallback succeeded with ${items.length} items.`);
-        return items.map((item: any) => ({
+        return items.map((item: { text: string; offset: number; duration: number }) => ({
           text: normalizeText(decodeEntities(item.text)),
           timestampStartMs: Math.round(item.offset),
           timestampEndMs: Math.round(item.offset + item.duration),

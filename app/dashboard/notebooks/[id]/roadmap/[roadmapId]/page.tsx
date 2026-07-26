@@ -2,24 +2,28 @@ import { getNotebookById } from "@/app/actions/notebooks";
 import { getNotebookSources } from "@/app/actions/sources";
 import { listNotebookConversations } from "@/app/actions/chat";
 import { getRoadmapById } from "@/app/actions/roadmaps";
-import { NotebookWorkspace } from "@/components/notebook/notebook-workspace";
+import { RoadmapWorkspaceClient } from "@/components/notebook/roadmap-workspace-client";
 import { notFound } from "next/navigation";
 
-export default async function NotebookWorkspacePage({
+export default async function RoadmapWorkspacePage({
   params,
-  searchParams,
 }: {
-  params: Promise<{ id: string }>;
-  searchParams: Promise<{ roadmapId?: string }>;
+  params: Promise<{ id: string; roadmapId: string }>;
 }) {
-  const { id } = await params;
-  const { roadmapId } = await searchParams;
+  const { id, roadmapId } = await params;
 
   const notebook = await getNotebookById(id);
   if (!notebook) notFound();
 
+  let roadmap = null;
+  try {
+    roadmap = await getRoadmapById(roadmapId);
+  } catch {
+    notFound();
+  }
+
   const sources = await getNotebookSources(id);
-  const rawConversations = await listNotebookConversations(id);
+  const rawConversations = await listNotebookConversations(id, "ROADMAP");
   const conversations = rawConversations.map((conversation) => ({
     ...conversation,
     createdAt: conversation.createdAt.toISOString(),
@@ -32,27 +36,12 @@ export default async function NotebookWorkspacePage({
     })),
   }));
 
-  const activeConversationId = conversations[0]?.id ?? null;
-
-  let activeRoadmap = null;
-  if (roadmapId) {
-    try {
-      activeRoadmap = await getRoadmapById(roadmapId);
-    } catch {
-      activeRoadmap = null;
-    }
-  }
-
   return (
-    <NotebookWorkspace
-      notebookId={id}
-      title={notebook.title}
-      description={notebook.description}
+    <RoadmapWorkspaceClient
+      notebook={notebook}
+      roadmap={roadmap}
       sources={sources}
       conversations={conversations}
-      activeConversationId={activeConversationId}
-      updatedAt={notebook.updatedAt}
-      activeRoadmap={activeRoadmap}
     />
   );
 }

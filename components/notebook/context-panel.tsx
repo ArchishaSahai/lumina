@@ -11,9 +11,9 @@ import { SourceCard } from "./source-card";
 import { formatUpdatedAt } from "@/lib/formatters";
 import { getNotebookSources } from "@/app/actions/sources";
 
-type Props = { notebookId: string; title: string; description: string; sources: NotebookSource[]; updatedAt: string; highlightedSourceIds: string[] };
+type Props = { notebookId: string; title: string; description: string; sources: NotebookSource[]; updatedAt: string; highlightedSourceIds: string[]; onGenerateSummary?: () => void; onGenerateRoadmap?: () => void; onOpenRoadmap?: () => void };
 
-export function ContextPanel({ notebookId, title, description, sources, updatedAt, highlightedSourceIds }: Props) {
+export function ContextPanel({ notebookId, title, description, sources, updatedAt, highlightedSourceIds, onGenerateSummary, onGenerateRoadmap, onOpenRoadmap }: Props) {
   const [addSourceOpen, setAddSourceOpen] = useState(false);
   const [sourceList, setSourceList] = useState(sources);
   const hasSources = sourceList.length > 0;
@@ -36,9 +36,24 @@ export function ContextPanel({ notebookId, title, description, sources, updatedA
       </motion.div>
       <section className="mt-7">
         <div className="flex items-center justify-between gap-3"><h2 className="text-xs font-semibold uppercase tracking-[.16em] text-zinc-500">Uploaded files</h2><Button type="button" size="sm" onClick={() => setAddSourceOpen(true)} className="bg-violet-500 text-white hover:bg-violet-400"><Plus className="size-3.5" /> Add source</Button></div>
-        {hasSources ? <div className="mt-3 space-y-2">{sourceList.map((source, index) => <SourceCard key={source.id} source={source} index={index} highlighted={highlightedSourceIds.includes(source.id)} onDeleted={(sourceId) => setSourceList((current) => current.filter((item) => item.id !== sourceId))} />)}</div> : <div className="mt-3 rounded-xl border border-dashed border-white/[.12] bg-white/[.02] px-4 py-8 text-center"><FolderOpen className="mx-auto size-5 text-violet-300" /><p className="mt-3 text-sm font-medium text-zinc-300">No sources yet</p><p className="mt-1 text-xs leading-5 text-zinc-500">Add files to give your chats grounded context.</p></div>}
+        {hasSources ? (
+          <div className="mt-3 space-y-2">
+            {sourceList.map((source, index) => (
+              <SourceCard
+                key={source.id}
+                source={source}
+                index={index}
+                highlighted={highlightedSourceIds.includes(source.id)}
+                onDeleted={(sourceId) => setSourceList((current) => current.filter((item) => item.id !== sourceId))}
+                onRenamed={(updated) => setSourceList((current) => current.map((item) => item.id === updated.id ? updated : item))}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="mt-3 rounded-xl border border-dashed border-white/[.12] bg-white/[.02] px-4 py-8 text-center"><FolderOpen className="mx-auto size-5 text-violet-300" /><p className="mt-3 text-sm font-medium text-zinc-300">No sources yet</p><p className="mt-1 text-xs leading-5 text-zinc-500">Add files to give your chats grounded context.</p></div>
+        )}
       </section>
-      <QuickActions />
+      <QuickActions onGenerateSummary={onGenerateSummary} onGenerateRoadmap={onGenerateRoadmap} onOpenRoadmap={onOpenRoadmap} />
       <AddSourceDialog notebookId={notebookId} open={addSourceOpen} onOpenChange={setAddSourceOpen} onSourceAdded={(source) => setSourceList((current) => [source, ...current])} />
     </aside>
   );
