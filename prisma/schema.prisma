@@ -50,6 +50,7 @@ model Source {
   type            SourceType
   status          SourceStatus  @default(UPLOADING)
   filePath        String?
+  fileData        Bytes?
   url             String?
   createdAt       DateTime      @default(now())
   parsedText      String?

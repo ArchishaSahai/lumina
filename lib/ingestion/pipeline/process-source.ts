@@ -20,7 +20,7 @@ export async function processSource(sourceId: string, options: ProcessSourceOpti
 
   try {
     const type = detectSourceType(source);
-    const parsed = await getParser(type).parse({ title: source.title, type, filePath: source.filePath, url: source.url });
+    const parsed = await getParser(type).parse({ title: source.title, type, filePath: source.filePath, url: source.url, fileData: source.fileData });
     await updateProcessingStage(source.id, "CHUNKING");
     const chunks = chunkDocument(parsed, { sourceId: source.id, notebookId: source.notebookId, sourceType: type, title: source.title }, options.chunker ?? defaultChunkerConfig);
     if (!chunks.length) throw new Error("No chunks could be created from this source.");

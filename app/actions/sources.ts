@@ -58,7 +58,16 @@ export async function uploadSourceFile(notebookId: string, formData: FormData) {
   const source = await prisma.source.create({ data: { notebookId, title: file.name, type, status: SourceStatus.UPLOADING } });
   try {
     const storedFile = await saveFile(file, notebookId);
-    const stored = await prisma.source.update({ where: { id: source.id }, data: { filePath: storedFile.path, status: SourceStatus.PROCESSING, processingError: null } });
+    const buffer = Buffer.from(await file.arrayBuffer());
+    const stored = await prisma.source.update({
+      where: { id: source.id },
+      data: {
+        filePath: storedFile.path,
+        fileData: buffer,
+        status: SourceStatus.PROCESSING,
+        processingError: null
+      }
+    });
     processSourceInBackground(source.id, notebookId);
     refreshNotebook(notebookId);
     return serializeSource(stored);

@@ -10,8 +10,16 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
   const source = await prisma.source.findFirst({ where: { id, notebook: { userId } } });
   if (!source) return NextResponse.json({ error: "Source not found" }, { status: 404 });
   if (source.url) return NextResponse.redirect(source.url);
-  if (!source.filePath) return NextResponse.json({ error: "Source file is unavailable" }, { status: 404 });
-  const file = await readFile(source.filePath);
+  
+  let file: Buffer | Uint8Array;
+  if (source.fileData) {
+    file = source.fileData;
+  } else if (source.filePath) {
+    file = await readFile(source.filePath);
+  } else {
+    return NextResponse.json({ error: "Source file is unavailable" }, { status: 404 });
+  }
+
   const contentType = source.type === "PDF" ? "application/pdf" : "text/plain; charset=utf-8";
   return new Response(new Uint8Array(file), { headers: { "Content-Type": contentType, "Content-Disposition": `inline; filename="${source.title.replace(/["\\]/g, "")}"` } });
 }

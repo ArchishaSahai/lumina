@@ -16,6 +16,7 @@ export type ParserInput = {
   type: SourceType;
   filePath: string | null;
   url: string | null;
+  fileData?: Buffer | Uint8Array | null;
 };
 
 export interface SourceParser {
