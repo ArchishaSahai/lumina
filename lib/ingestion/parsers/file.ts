@@ -4,6 +4,7 @@ import type { ParsedDocument, ParserInput, SourceParser } from "../types";
 import { decodeEntities, normalizeText } from "./normalize";
 
 async function read(input: ParserInput) {
+  if (input.fileData) return input.fileData;
   if (!input.filePath) throw new Error(`${input.type} source has no stored file.`);
   return readFile(input.filePath);
 }
