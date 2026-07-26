@@ -27,11 +27,33 @@ const youtubeIdPattern = /(?:youtube\.com\/(?:[^/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[
 const userAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/85.0.4183.83 Safari/537.36";
 const androidUserAgent = "com.google.android.youtube/20.10.38 (Linux; U; Android 14)";
 const transcriptUnavailableMessage = "No transcript available";
+const hostedTranscriptApiUrl = "https://www.youtubetranscript.dev/api/v2/transcribe";
+
+type HostedTranscriptSegment = {
+  text?: string;
+  start?: number;
+  end?: number;
+  duration?: number;
+};
+
+type HostedTranscriptResponse = {
+  status?: string;
+  data?: {
+    transcript?: {
+      text?: string;
+      segments?: HostedTranscriptSegment[];
+    };
+  };
+  error?: { message?: string };
+  message?: string;
+};
 
 export const youtubeParser: SourceParser = {
   async parse(input) {
     if (!input.url) throw new Error("YouTube source has no URL.");
     const videoId = extractVideoId(input.url);
+    const hostedTranscript = await fetchHostedTranscript(videoId);
+    if (hostedTranscript) return hostedTranscript;
 
     let tracks: CaptionTrack[] = [];
     let originalLanguage: string | null = null;
@@ -109,6 +131,61 @@ export const youtubeParser: SourceParser = {
     return { text, segments: best.segments };
   },
 };
+
+async function fetchHostedTranscript(videoId: string): Promise<{ text: string; segments: TextSegment[] } | null> {
+  const apiKey = process.env.YOUTUBE_TRANSCRIPT_API_KEY;
+  if (!apiKey) return null;
+
+  const response = await fetchWithTimeout(hostedTranscriptApiUrl, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      video: videoId,
+      language: "en",
+      format: { timestamp: true },
+    }),
+  });
+  const body = await response.text();
+  const data = parseHostedTranscriptResponse(body);
+
+  if (!response.ok) {
+    const message = data?.error?.message ?? data?.message ?? `hosted transcript request failed with ${response.status}`;
+    throw new Error(`transcript API failure: ${message}`);
+  }
+
+  const hostedSegments = data?.data?.transcript?.segments ?? [];
+  const segments = hostedSegments
+    .map((segment) => {
+      const text = normalizeText(decodeEntities(segment.text ?? ""));
+      if (!text) return null;
+      const start = normalizeHostedTimestamp(segment.start);
+      const end = normalizeHostedTimestamp(segment.end ?? (segment.duration !== undefined ? start + segment.duration : start));
+      return { text, timestampStartMs: start, timestampEndMs: end };
+    })
+    .filter(Boolean) as TextSegment[];
+
+  const text = normalizeText(segments.length ? segments.map((segment) => segment.text).join(" ") : data?.data?.transcript?.text ?? "");
+  if (!text) throw new Error(transcriptUnavailableMessage);
+
+  console.info("YouTube hosted transcript selected", { videoId, textLength: text.length, segmentCount: segments.length });
+  return { text, segments };
+}
+
+function parseHostedTranscriptResponse(body: string): HostedTranscriptResponse | null {
+  try {
+    return JSON.parse(body) as HostedTranscriptResponse;
+  } catch {
+    return null;
+  }
+}
+
+function normalizeHostedTimestamp(value: number | undefined) {
+  if (!value || Number.isNaN(value)) return 0;
+  return value > 10_000 ? Math.round(value) : Math.round(value * 1000);
+}
 
 export function extractVideoId(url: string) {
   if (/^[\w-]{11}$/.test(url)) return url;
