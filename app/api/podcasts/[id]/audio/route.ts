@@ -75,23 +75,28 @@ export async function HEAD(
 
   const { filePath, podcast } = result;
   let fileSize: number;
-  try {
-    const stats = await statFile(filePath);
-    fileSize = stats.size;
-  } catch {
-    const resolvedPath = resolveStoragePath(filePath);
-    logPodcastAudioRoute({
-      podcastId: id,
-      pathQueryParameter: filePath,
-      podcastAudioUrlFromDb: podcast.audioUrl,
-      resolvedAbsoluteFilePath: resolvedPath,
-      existsOnDisk: existsSync(resolvedPath),
-      notFoundReason: "Audio file stat failed in HEAD handler.",
-    });
-    return NextResponse.json(
-      { error: "Audio file not found on disk." },
-      { status: 404 },
-    );
+
+  if (podcast.audioData) {
+    fileSize = podcast.audioData.length;
+  } else {
+    try {
+      const stats = await statFile(filePath!);
+      fileSize = stats.size;
+    } catch {
+      const resolvedPath = resolveStoragePath(filePath!);
+      logPodcastAudioRoute({
+        podcastId: id,
+        pathQueryParameter: filePath,
+        podcastAudioUrlFromDb: podcast.audioUrl,
+        resolvedAbsoluteFilePath: resolvedPath,
+        existsOnDisk: existsSync(resolvedPath),
+        notFoundReason: "Audio file stat failed in HEAD handler.",
+      });
+      return NextResponse.json(
+        { error: "Audio file not found on disk." },
+        { status: 404 },
+      );
+    }
   }
 
   return new Response(null, {
@@ -125,23 +130,30 @@ export async function GET(
   const { filePath, podcast } = result;
 
   let fileSize: number;
-  try {
-    const stats = await statFile(filePath);
-    fileSize = stats.size;
-  } catch {
-    const resolvedPath = resolveStoragePath(filePath);
-    logPodcastAudioRoute({
-      podcastId: id,
-      pathQueryParameter: filePath,
-      podcastAudioUrlFromDb: podcast.audioUrl,
-      resolvedAbsoluteFilePath: resolvedPath,
-      existsOnDisk: existsSync(resolvedPath),
-      notFoundReason: "Audio file stat failed in GET handler.",
-    });
-    return NextResponse.json(
-      { error: "Audio file not found on disk." },
-      { status: 404 },
-    );
+  let audioBuffer: Buffer | null = null;
+
+  if (podcast.audioData) {
+    audioBuffer = Buffer.from(podcast.audioData);
+    fileSize = audioBuffer.length;
+  } else {
+    try {
+      const stats = await statFile(filePath!);
+      fileSize = stats.size;
+    } catch {
+      const resolvedPath = resolveStoragePath(filePath!);
+      logPodcastAudioRoute({
+        podcastId: id,
+        pathQueryParameter: filePath,
+        podcastAudioUrlFromDb: podcast.audioUrl,
+        resolvedAbsoluteFilePath: resolvedPath,
+        existsOnDisk: existsSync(resolvedPath),
+        notFoundReason: "Audio file stat failed in GET handler.",
+      });
+      return NextResponse.json(
+        { error: "Audio file not found on disk." },
+        { status: 404 },
+      );
+    }
   }
 
   const rangeHeader = request.headers.get("range");
@@ -175,7 +187,57 @@ export async function GET(
 
     const chunkSize = end - start + 1;
 
-    const nodeStream = createFileReadStream(filePath, { start, end });
+    if (audioBuffer) {
+      const chunk = audioBuffer.subarray(start, end + 1);
+      return new Response(new Uint8Array(chunk), {
+        status: 206,
+        headers: {
+          ...commonHeaders,
+          "Content-Length": String(chunkSize),
+          "Content-Range": `bytes ${start}-${end}/${fileSize}`,
+        },
+      });
+    } else {
+      const nodeStream = createFileReadStream(filePath!, { start, end });
+      const webStream = new ReadableStream({
+        start(controller) {
+          nodeStream.on("data", (chunk: Buffer | string) => {
+            controller.enqueue(new Uint8Array(typeof chunk === "string" ? Buffer.from(chunk) : chunk));
+          });
+          nodeStream.on("end", () => {
+            controller.close();
+          });
+          nodeStream.on("error", (err) => {
+            controller.error(err);
+          });
+        },
+        cancel() {
+          nodeStream.destroy();
+        },
+      });
+
+      return new Response(webStream, {
+        status: 206,
+        headers: {
+          ...commonHeaders,
+          "Content-Length": String(chunkSize),
+          "Content-Range": `bytes ${start}-${end}/${fileSize}`,
+        },
+      });
+    }
+  }
+
+  // --- Full request (200 OK) ---
+  if (audioBuffer) {
+    return new Response(new Uint8Array(audioBuffer), {
+      status: 200,
+      headers: {
+        ...commonHeaders,
+        "Content-Length": String(fileSize),
+      },
+    });
+  } else {
+    const nodeStream = createFileReadStream(filePath!);
     const webStream = new ReadableStream({
       start(controller) {
         nodeStream.on("data", (chunk: Buffer | string) => {
@@ -194,39 +256,11 @@ export async function GET(
     });
 
     return new Response(webStream, {
-      status: 206,
+      status: 200,
       headers: {
         ...commonHeaders,
-        "Content-Length": String(chunkSize),
-        "Content-Range": `bytes ${start}-${end}/${fileSize}`,
+        "Content-Length": String(fileSize),
       },
     });
   }
-
-  // --- Full request (200 OK) ---
-  const nodeStream = createFileReadStream(filePath);
-  const webStream = new ReadableStream({
-    start(controller) {
-      nodeStream.on("data", (chunk: Buffer | string) => {
-        controller.enqueue(new Uint8Array(typeof chunk === "string" ? Buffer.from(chunk) : chunk));
-      });
-      nodeStream.on("end", () => {
-        controller.close();
-      });
-      nodeStream.on("error", (err) => {
-        controller.error(err);
-      });
-    },
-    cancel() {
-      nodeStream.destroy();
-    },
-  });
-
-  return new Response(webStream, {
-    status: 200,
-    headers: {
-      ...commonHeaders,
-      "Content-Length": String(fileSize),
-    },
-  });
 }

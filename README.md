@@ -4,6 +4,9 @@
 
 **An AI-powered learning workspace for turning documents, videos, and websites into grounded conversations, summaries, roadmaps, and podcasts.**
 
+[Live Application](https://lumina-smoky-eta.vercel.app/) | [Video Demo](https://youtu.be/9pY9-hPYbCA)
+
+
 ![Next.js](https://img.shields.io/badge/Next.js-15-000000?style=for-the-badge&logo=next.js)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?style=for-the-badge&logo=typescript&logoColor=white)
 ![OpenAI](https://img.shields.io/badge/OpenAI-API-412991?style=for-the-badge&logo=openai&logoColor=white)

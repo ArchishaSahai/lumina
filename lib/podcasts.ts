@@ -2,6 +2,7 @@ import { generateSpeech } from "ai";
 import { openai } from "@ai-sdk/openai";
 import type { RetrievedChunk } from "@/lib/ai/rag";
 import { resolveStoragePath, saveBuffer } from "@/lib/storage";
+import { prisma } from "@/lib/prisma";
 import type { PodcastSettings, VoiceAssignment, VoiceName } from "@/app/actions/podcasts";
 
 const openAiVoiceByName: Record<VoiceName, string> = {
@@ -145,8 +146,15 @@ export async function generatePodcastAudio(transcript: string, assignments: Voic
     segments.push(Buffer.from(result.audio.uint8Array));
   }
 
-  const stored = await saveBuffer(Buffer.concat(segments), `podcasts/${podcastId}`, ".mp3");
+  const audioBuffer = Buffer.concat(segments);
+  const stored = await saveBuffer(audioBuffer, `podcasts/${podcastId}`, ".mp3");
   const audioUrl = `/api/podcasts/${podcastId}/audio?path=${encodeURIComponent(stored.path)}`;
+
+  await prisma.podcast.update({
+    where: { id: podcastId },
+    data: { audioData: audioBuffer },
+  });
+
   logPodcastAudioGeneration({
     podcastId,
     absoluteFilePath: resolveStoragePath(stored.path),

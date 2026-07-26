@@ -184,6 +184,7 @@ model Podcast {
   settings         Json
   transcript       String?
   audioUrl         String?
+  audioData        Bytes?
   duration         Int           @default(5)
   voice            String        @default("Nova")
   speakers         Int           @default(1)
