@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { buildRetrievalPlan, rewriteQuery, searchNotebookChunks } from "@/lib/ai/rag";
-import { validatePreRetrievalGuardrails, validateRetrievalEvidence } from "@/lib/ai/guardrails";
+import { validateGenerationGuardrails, validateRetrievalEvidence } from "@/lib/ai/guardrails";
 
 const previewSchema = z.object({
   notebookId: z.string().min(1),
@@ -27,7 +27,7 @@ export async function POST(request: Request) {
       sourceTitles: notebook.sources.map((source) => source.title),
       useCase: "podcast" as const,
     };
-    const preRetrievalDecision = validatePreRetrievalGuardrails(input.prompt, guardrailContext, plan);
+    const preRetrievalDecision = validateGenerationGuardrails(input.prompt, guardrailContext);
     if (!preRetrievalDecision.allowed) return NextResponse.json({ error: preRetrievalDecision.message }, { status: 400 });
 
     const rewritten = await rewriteQuery(plan.query);

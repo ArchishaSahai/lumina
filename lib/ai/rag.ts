@@ -43,7 +43,7 @@ export async function rewriteQuery(question: string) {
 
 export function classifyQueryIntent(question: string, history: Array<{ role: string; content: string }> = []): QueryIntent {
   const normalized = question.toLowerCase().trim();
-  if (/\b(what (have|did) i upload|uploaded resources?|list (my |the )?(sources|resources|uploads)|show (my |the )?(sources|resources|uploads))\b/.test(normalized)) return "list_sources";
+  if (/\b(what (have|did) i upload|uploaded resources?|list (my |the )?(sources|resources|uploads|websites|pdfs|videos)|show (my |the )?(sources|resources|uploads|websites|pdfs|videos)|what (sources|resources|uploads|websites|pdfs|videos) (have|did) i (upload|added|uploaded))\b/.test(normalized)) return "list_sources";
   if (/\b(roadmap|learning path|learning roadmap|study plan|curriculum|step by step plan)\b/i.test(normalized)) return "roadmap";
   if (/\b(compare|contrast|versus| vs\.? |differences?|similarities?|which is better|pros and cons)\b/.test(normalized)) return "comparison";
   if (/\b(study guide|study notes|revision notes|flashcards?|outline|quiz me|key takeaways|important concepts?)\b/.test(normalized)) return "study_guide";
@@ -203,9 +203,20 @@ export async function searchNotebookChunks(notebookId: string, query: string, pl
     return { ...chunk, score: matches[position]?.score ?? 0 };
   }).filter(Boolean) as RetrievedChunk[];
   const ranked = plan.broad ? sourceDiverseChunks(candidates, plan.limit) : rerankChunks(candidates, plan.limit);
-  if (ranked.length >= Math.min(3, plan.limit) || (!plan.broad && ranked.length > 0)) return ranked;
-  const fallbacks = await representativeNotebookChunks(notebookId, plan.limit);
-  return sourceDiverseChunks([...ranked, ...fallbacks], plan.limit);
+  let finalChunks = ranked;
+  if (!(ranked.length >= Math.min(3, plan.limit) || (!plan.broad && ranked.length > 0))) {
+    const fallbacks = await representativeNotebookChunks(notebookId, plan.limit);
+    finalChunks = sourceDiverseChunks([...ranked, ...fallbacks], plan.limit);
+  }
+
+  const groupedCounts = finalChunks.reduce((acc, chunk) => {
+    const type = chunk.source?.type || chunk.sourceType || "UNKNOWN";
+    acc[type] = (acc[type] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+  console.info("[RAG] Retrieved chunks grouped by source type:", groupedCounts);
+
+  return finalChunks;
 }
 
 export function buildGroundedPrompt(question: string, chunks: RetrievedChunk[], intent: QueryIntent = "specific") {

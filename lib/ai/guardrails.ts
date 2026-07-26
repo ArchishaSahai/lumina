@@ -80,6 +80,11 @@ function includesAny(value: string, candidates: string[]) {
   return candidates.some((candidate) => value.includes(candidate));
 }
 
+export function logGuardrailTrace(input: Record<string, unknown>) {
+  if (process.env.NODE_ENV !== "development") return;
+  console.info("[ai-guardrail-trace]", input);
+}
+
 function createBlock(reason: GuardrailBlockReason, message: string, context: GuardrailContext, signal: string, score?: number): GuardrailBlock {
   logGuardrailBlock({ notebookId: context.notebookId, useCase: context.useCase, reason, signal, score });
   return { allowed: false, reason, message };
@@ -148,9 +153,22 @@ export function validateNotebookRelevance(prompt: string, context: GuardrailCont
   return { allowed: true };
 }
 
-export function validatePreRetrievalGuardrails(prompt: string, context: GuardrailContext, plan: RetrievalPlan, overrides?: Partial<GuardrailConfig>): GuardrailDecision {
+export function validateNotebookChatGuardrails(prompt: string, context: GuardrailContext, plan: RetrievalPlan, overrides?: Partial<GuardrailConfig>): GuardrailDecision {
   const safety = validatePromptSafety(prompt, context, overrides);
   if (!safety.allowed) return safety;
+  return validateNotebookRelevance(prompt, context, plan);
+}
+
+export function validateGenerationGuardrails(prompt: string, context: GuardrailContext, overrides?: Partial<GuardrailConfig>): GuardrailDecision {
+  return validatePromptSafety(prompt, context, overrides);
+}
+
+export function validatePreRetrievalGuardrails(prompt: string, context: GuardrailContext, plan: RetrievalPlan, overrides?: Partial<GuardrailConfig>): GuardrailDecision {
+  return validateNotebookChatGuardrails(prompt, context, plan, overrides);
+}
+
+export function validatePostRetrievalNotebookRelevance(prompt: string, chunks: RetrievedChunk[], context: GuardrailContext, plan: RetrievalPlan): GuardrailDecision {
+  if (chunks.length > 0) return { allowed: true };
   return validateNotebookRelevance(prompt, context, plan);
 }
 

@@ -3,7 +3,7 @@ import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { buildRetrievalPlan, rewriteQuery, searchNotebookChunks, selectCitationsForAnswer } from "@/lib/ai/rag";
-import { validatePreRetrievalGuardrails, validateRetrievalEvidence } from "@/lib/ai/guardrails";
+import { validateGenerationGuardrails, validateRetrievalEvidence } from "@/lib/ai/guardrails";
 import { getChatModel } from "@/lib/ai/embeddings";
 import { buildPodcastPrompt, generatePodcastAudio, normalizeVoiceAssignments, parsePodcastTitleAndTranscript } from "@/lib/podcasts";
 import { z } from "zod";
@@ -91,7 +91,7 @@ export async function POST(request: Request) {
       sourceTitles: notebook.sources.map((source) => source.title),
       useCase: "podcast" as const,
     };
-    const preRetrievalDecision = validatePreRetrievalGuardrails(input.prompt, guardrailContext, plan);
+    const preRetrievalDecision = validateGenerationGuardrails(input.prompt, guardrailContext);
     if (!preRetrievalDecision.allowed) throw new Error(preRetrievalDecision.message);
 
     const rewritten = await rewriteQuery(plan.query);

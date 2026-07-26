@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { chunkDocument, type ChunkerConfig, defaultChunkerConfig } from "../chunker/semantic";
 import { detectSourceType, getParser } from "../parsers";
 import type { TextChunk } from "../types";
-import { upsertChunksToPinecone } from "@/lib/ai/rag";
+import { upsertChunksToPinecone, removeChunksFromPinecone } from "@/lib/ai/rag";
 
 export type ProcessSourceOptions = { chunker?: ChunkerConfig };
 export type ProcessSourceResult = { parsedText: string; chunks: TextChunk[] };
@@ -45,6 +45,7 @@ export async function processSource(sourceId: string, options: ProcessSourceOpti
     }, { maxWait: 15000, timeout: 60000 });
 
     await updateProcessingStage(source.id, "EMBEDDING");
+    await removeChunksFromPinecone(source.id);
     await upsertChunksToPinecone(createdChunks);
     await prisma.source.update({
       where: { id: source.id },

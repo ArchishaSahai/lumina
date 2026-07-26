@@ -4,7 +4,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { buildGroundedPrompt, buildRetrievalPlan, listNotebookSources, rewriteQuery, searchNotebookChunks, selectCitationsForAnswer, type RetrievedChunk } from "@/lib/ai/rag";
 import { getChatModel } from "@/lib/ai/embeddings";
-import { validatePreRetrievalGuardrails, validateRetrievalEvidence } from "@/lib/ai/guardrails";
+import { logGuardrailTrace, validatePostRetrievalNotebookRelevance, validatePromptSafety, validateRetrievalEvidence } from "@/lib/ai/guardrails";
 import { appendMessage, createConversation } from "@/app/actions/chat";
 import { z } from "zod";
 import { sourceTypeLabel } from "@/lib/sources";
@@ -59,7 +59,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     useCase: input.roadmapContext ? "roadmap" as const : "chat" as const,
   };
 
-  const preRetrievalDecision = validatePreRetrievalGuardrails(input.question, guardrailContext, retrievalPlan);
+  logGuardrailTrace({
+    phase: "pre_retrieval_context",
+    notebookId,
+    notebookTitle: notebook.title,
+    sourceTitles,
+    retrievalIntent: retrievalPlan.intent,
+  });
+
+  const preRetrievalDecision = validatePromptSafety(input.question, guardrailContext);
   if (!preRetrievalDecision.allowed) {
     await appendMessage(conversation.id, notebookId, "ASSISTANT", preRetrievalDecision.message, []);
     return textResponse(preRetrievalDecision.message, conversation.id);
@@ -151,6 +159,20 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     console.info("[RAG Tracing] Exact Model Called:", process.env.OPENAI_CHAT_MODEL ?? "gpt-4.1-mini");
     console.info("[RAG Tracing] Retrieved Chunks Count:", retrieved.length);
     console.info("[RAG Tracing] Retrieved Context Character Length:", retrieved.reduce((acc, chunk) => acc + chunk.text.length, 0));
+  }
+  logGuardrailTrace({
+    phase: "post_retrieval_context",
+    notebookId,
+    notebookTitle: notebook.title,
+    sourceTitles,
+    retrievedChunkCount: retrieved.length,
+    retrievedChunks: retrieved.slice(0, 5).map((chunk) => ({ id: chunk.id, title: chunk.title, score: chunk.score, textLength: chunk.text.length })),
+  });
+
+  const relevanceDecision = validatePostRetrievalNotebookRelevance(input.question, retrieved, guardrailContext, retrievalPlan);
+  if (!relevanceDecision.allowed) {
+    await appendMessage(conversation.id, notebookId, "ASSISTANT", relevanceDecision.message, []);
+    return textResponse(relevanceDecision.message, conversation.id);
   }
 
   const retrievalDecision = validateRetrievalEvidence(retrieved, guardrailContext, retrievalPlan);

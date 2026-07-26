@@ -6,7 +6,7 @@ import { generateObject, generateText } from "ai";
 import { z } from "zod";
 import { getChatModel } from "@/lib/ai/embeddings";
 import { buildGroundedPrompt, buildRetrievalPlan, rewriteQuery, searchNotebookChunks } from "@/lib/ai/rag";
-import { validatePreRetrievalGuardrails, validateRetrievalEvidence } from "@/lib/ai/guardrails";
+import { validateGenerationGuardrails, validateRetrievalEvidence } from "@/lib/ai/guardrails";
 import { saveGeneratedRoadmap } from "./roadmaps";
 
 export type RoadmapIntent = {
@@ -30,7 +30,6 @@ export async function previewRoadmapFocusAction(notebookId: string, prompt: stri
   const notebook = await prisma.notebook.findFirst({ where: { id: notebookId, userId }, include: { sources: { select: { title: true } } } });
   if (!notebook) throw new Error("Notebook not found.");
 
-  const retrievalPlan = buildRetrievalPlan(prompt, []);
   const guardrailContext = {
     notebookId,
     notebookTitle: notebook.title,
@@ -38,7 +37,7 @@ export async function previewRoadmapFocusAction(notebookId: string, prompt: stri
     sourceTitles: notebook.sources.map((source) => source.title),
     useCase: "roadmap" as const,
   };
-  const preRetrievalDecision = validatePreRetrievalGuardrails(prompt, guardrailContext, retrievalPlan);
+  const preRetrievalDecision = validateGenerationGuardrails(prompt, guardrailContext);
   if (!preRetrievalDecision.allowed) throw new Error(preRetrievalDecision.message);
 
   const { object: intent } = await generateObject({
@@ -86,7 +85,7 @@ export async function generateRoadmapAction(notebookId: string, intent: RoadmapP
     sourceTitles: notebook.sources.map((source) => source.title),
     useCase: "roadmap" as const,
   };
-  const preRetrievalDecision = validatePreRetrievalGuardrails(intent.primarySkill, guardrailContext, retrievalPlan);
+  const preRetrievalDecision = validateGenerationGuardrails(intent.primarySkill, guardrailContext);
   if (!preRetrievalDecision.allowed) throw new Error(preRetrievalDecision.message);
 
   const rewritten = await rewriteQuery(retrievalPlan.query);
