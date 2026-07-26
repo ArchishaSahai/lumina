@@ -255,7 +255,7 @@ export function ChatBubble({ message, expandedCitations, onToggleCitation, onCit
             <div key={citation.chunkId} onMouseEnter={() => onCitationHover?.(citation)} className="group/citation relative w-auto">
               <button
                 type="button"
-                onClick={() => openCitation(citation)}
+                onClick={() => onToggleCitation?.(citation)}
                 className="cursor-pointer rounded-full border border-violet-300/15 bg-violet-400/[.08] px-2.5 py-1 text-violet-200 transition-colors hover:bg-violet-400/[.16]"
               >
                 {citation.sourceTitle}{timestamp ? ` • ${timestamp}` : ""}

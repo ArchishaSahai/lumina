@@ -11,9 +11,9 @@ import { SourceCard } from "./source-card";
 import { formatUpdatedAt } from "@/lib/formatters";
 import { getNotebookSources } from "@/app/actions/sources";
 
-type Props = { notebookId: string; title: string; description: string; sources: NotebookSource[]; updatedAt: string; highlightedSourceIds: string[]; onGenerateSummary?: () => void; onGenerateRoadmap?: () => void; onOpenRoadmap?: () => void };
+type Props = { notebookId: string; title: string; description: string; sources: NotebookSource[]; updatedAt: string; highlightedSourceIds: string[]; onGenerateSummary?: () => void; onGenerateRoadmap?: () => void; onOpenRoadmap?: () => void; onGeneratePodcast?: () => void };
 
-export function ContextPanel({ notebookId, title, description, sources, updatedAt, highlightedSourceIds, onGenerateSummary, onGenerateRoadmap, onOpenRoadmap }: Props) {
+export function ContextPanel({ notebookId, title, description, sources, updatedAt, highlightedSourceIds, onGenerateSummary, onGenerateRoadmap, onOpenRoadmap, onGeneratePodcast }: Props) {
   const [addSourceOpen, setAddSourceOpen] = useState(false);
   const [sourceList, setSourceList] = useState(sources);
   const hasSources = sourceList.length > 0;
@@ -53,7 +53,7 @@ export function ContextPanel({ notebookId, title, description, sources, updatedA
           <div className="mt-3 rounded-xl border border-dashed border-white/[.12] bg-white/[.02] px-4 py-8 text-center"><FolderOpen className="mx-auto size-5 text-violet-300" /><p className="mt-3 text-sm font-medium text-zinc-300">No sources yet</p><p className="mt-1 text-xs leading-5 text-zinc-500">Add files to give your chats grounded context.</p></div>
         )}
       </section>
-      <QuickActions onGenerateSummary={onGenerateSummary} onGenerateRoadmap={onGenerateRoadmap} onOpenRoadmap={onOpenRoadmap} />
+      <QuickActions onGenerateSummary={onGenerateSummary} onGenerateRoadmap={onGenerateRoadmap} onOpenRoadmap={onOpenRoadmap} onGeneratePodcast={onGeneratePodcast} />
       <AddSourceDialog notebookId={notebookId} open={addSourceOpen} onOpenChange={setAddSourceOpen} onSourceAdded={(source) => setSourceList((current) => [source, ...current])} />
     </aside>
   );

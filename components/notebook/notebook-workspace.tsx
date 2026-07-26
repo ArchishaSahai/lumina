@@ -13,6 +13,7 @@ import { createConversation, deleteConversation, renameConversation } from "@/ap
 
 import { type SerializedRoadmap } from "@/app/actions/roadmaps";
 import { GenerateRoadmapDialog, type RoadmapPreviewData } from "./generate-roadmap-dialog";
+import { GeneratePodcastDialog } from "./generate-podcast-dialog";
 
 type Props = {
   notebookId: string;
@@ -43,6 +44,7 @@ export function NotebookWorkspace({
   const [search, setSearch] = useState("");
   const [highlightedSourceIds, setHighlightedSourceIds] = useState<string[]>([]);
   const [roadmapDialogOpen, setRoadmapDialogOpen] = useState(false);
+  const [podcastDialogOpen, setPodcastDialogOpen] = useState(false);
 
   const [isGeneratingRoadmap, setIsGeneratingRoadmap] = useState(false);
 
@@ -181,6 +183,8 @@ export function NotebookWorkspace({
         />
         <NotebookChat
           notebookId={notebookId}
+          notebookTitle={title}
+          sourceNames={sources.map((source) => source.title)}
           conversationId={currentConversation?.id ?? null}
           messages={currentMessages}
           hasSources={hasSources}
@@ -205,6 +209,7 @@ export function NotebookWorkspace({
               ? () => router.push(`/dashboard/notebooks/${notebookId}/roadmap/${effectiveRoadmapId}`)
               : undefined
           }
+          onGeneratePodcast={() => setPodcastDialogOpen(true)}
         />
       </div>
 
@@ -213,6 +218,11 @@ export function NotebookWorkspace({
         onOpenChange={setRoadmapDialogOpen}
         onPreview={handleRoadmapPreview}
         onSubmit={handleRoadmapSubmit}
+      />
+      <GeneratePodcastDialog
+        notebookId={notebookId}
+        open={podcastDialogOpen}
+        onOpenChange={setPodcastDialogOpen}
       />
     </motion.div>
   );

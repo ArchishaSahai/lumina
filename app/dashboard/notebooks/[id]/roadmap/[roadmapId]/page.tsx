@@ -18,6 +18,7 @@ export default async function RoadmapWorkspacePage({
   let roadmap = null;
   try {
     roadmap = await getRoadmapById(roadmapId);
+    if (roadmap.notebookId !== id) notFound();
   } catch {
     notFound();
   }

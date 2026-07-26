@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
-import { Sparkles } from "lucide-react";
+import { FileText, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { createConversationForPrompt, titleConversationFromPrompt } from "@/app/actions/chat";
@@ -14,6 +14,8 @@ import type { ChatMessage, ChatCitation } from "./notebook-workspace-data";
 
 type Props = {
   notebookId: string;
+  notebookTitle: string;
+  sourceNames: string[];
   conversationId: string | null;
   messages: ChatMessage[];
   hasSources: boolean;
@@ -31,10 +33,16 @@ function isAtBottom(element: HTMLDivElement | null) {
   return !element || element.scrollHeight - element.scrollTop - element.clientHeight < 96;
 }
 
-export function NotebookChat({ notebookId, conversationId, messages, hasSources, onConversationCreated, onConversationTitleChanged, onConversationUpdated, onCitationView, onRefresh, onTriggerPrompt }: Props) {
+function isGenericPrompt(prompt: string) {
+  const normalized = prompt.toLowerCase().trim().replace(/[!?.,\s]+$/g, "");
+  return /^(hi|hello|hey|yo|sup|thanks|thank you|ok|okay)$/.test(normalized) || /\b(tell me a joke|joke|write a poem|sing a song|weather|who are you)\b/.test(normalized);
+}
+
+export function NotebookChat({ notebookId, notebookTitle, sourceNames, conversationId, messages, hasSources, onConversationCreated, onConversationTitleChanged, onConversationUpdated, onCitationView, onRefresh, onTriggerPrompt }: Props) {
   const router = useRouter();
   const [liveMessages, setLiveMessages] = useState<MessageState[]>(messages);
   const [input, setInput] = useState("");
+  const [promptHint, setPromptHint] = useState("");
   const [status, setStatus] = useState<"idle" | "searching" | "generating">("idle");
   const [selectedCitations, setSelectedCitations] = useState<Record<string, boolean>>({});
   const abortRef = useRef<AbortController | null>(null);
@@ -67,11 +75,11 @@ export function NotebookChat({ notebookId, conversationId, messages, hasSources,
     if (viewport && autoScroll) viewport.scrollTo({ top: viewport.scrollHeight, behavior: "smooth" });
   }, [liveMessages, autoScroll, status]);
 
-  const persistPartial = (assistantId: string, content: string) => {
+  const persistPartial = useCallback((assistantId: string, content: string) => {
     setLiveMessages((current) => current.map((message) => message.id === assistantId ? { ...message, content, streaming: true } : message));
-  };
+  }, []);
 
-  const finalizeAssistant = async (assistantId: string, content: string, citations: ChatCitation[]) => {
+  const finalizeAssistant = useCallback(async (assistantId: string, content: string, citations: ChatCitation[]) => {
     let createdRoadmapId: string | null = null;
 
     try {
@@ -108,9 +116,9 @@ export function NotebookChat({ notebookId, conversationId, messages, hasSources,
       toast.success("Roadmap created! Redirecting to workspace...");
       router.push(`/dashboard/notebooks/${notebookId}/roadmap/${createdRoadmapId}`);
     }
-  };
+  }, [notebookId, router]);
 
-  const runChat = async (question: string, targetConversationId: string | null, regenerateAssistantId?: string) => {
+  const runChat = useCallback(async (question: string, targetConversationId: string | null, regenerateAssistantId?: string) => {
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
@@ -143,9 +151,9 @@ export function NotebookChat({ notebookId, conversationId, messages, hasSources,
       if (abortRef.current === controller) abortRef.current = null;
       setStatus("idle");
     }
-  };
+  }, [finalizeAssistant, notebookId, persistPartial]);
 
-  const triggerPrompt = async (promptText: string) => {
+  const triggerPrompt = useCallback(async (promptText: string) => {
     if (status !== "idle") return;
     setLiveMessages((current) => [...current, { id: crypto.randomUUID(), role: "user", content: promptText, createdAt: new Date().toISOString(), prompt: promptText }]);
 
@@ -160,15 +168,20 @@ export function NotebookChat({ notebookId, conversationId, messages, hasSources,
       onConversationTitleChanged(conversation.id, conversation.title);
     }
     await runChat(promptText, targetConversationId);
-  };
+  }, [conversationId, liveMessages.length, notebookId, onConversationCreated, onConversationTitleChanged, runChat, status]);
 
   useEffect(() => {
     onTriggerPrompt?.(triggerPrompt);
-  }, [onTriggerPrompt]);
+  }, [onTriggerPrompt, triggerPrompt]);
 
   const submitQuestion = async () => {
     const question = input.trim();
     if (!question || status !== "idle") return;
+    if (isGenericPrompt(question)) {
+      setPromptHint("Try asking about this notebook or one of the uploaded sources.");
+      return;
+    }
+    setPromptHint("");
     setInput("");
     setLiveMessages((current) => [...current, { id: crypto.randomUUID(), role: "user", content: question, createdAt: new Date().toISOString(), prompt: question }]);
 
@@ -202,11 +215,23 @@ export function NotebookChat({ notebookId, conversationId, messages, hasSources,
   return (
     <main className="flex min-h-[580px] min-w-0 flex-col bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-violet-950/25 via-zinc-950 to-black">
       <div className="flex items-center justify-between border-b border-violet-500/15 bg-zinc-950/70 px-5 py-4 backdrop-blur-md shadow-[0_4px_30px_rgba(139,92,246,0.08)]">
-        <div>
+        <div className="min-w-0">
           <p className="text-xs font-semibold uppercase tracking-[.16em] text-violet-300">Chat</p>
+          <h1 className="mt-1 truncate font-heading text-xl font-semibold tracking-[-.04em] text-white">{notebookTitle}</h1>
           <p className="mt-1 text-sm text-zinc-500">
             {status === "searching" ? "Searching sources..." : status === "generating" ? "Generating answer..." : hasSources ? "Grounded in your notebook sources" : "Add sources to ground your responses"}
           </p>
+          {sourceNames.length > 0 && (
+            <div className="mt-3 flex max-w-3xl flex-wrap gap-2">
+              {sourceNames.slice(0, 5).map((sourceName) => (
+                <span key={sourceName} className="inline-flex max-w-44 items-center gap-1.5 rounded-full border border-white/[.1] bg-white/[.045] px-2.5 py-1 text-xs text-zinc-300">
+                  <FileText className="size-3 text-violet-300" />
+                  <span className="truncate">{sourceName}</span>
+                </span>
+              ))}
+              {sourceNames.length > 5 && <span className="rounded-full border border-white/[.1] bg-white/[.03] px-2.5 py-1 text-xs text-zinc-500">+{sourceNames.length - 5} more</span>}
+            </div>
+          )}
         </div>
         <span className="rounded-full border border-violet-300/15 bg-violet-400/[.08] px-2.5 py-1 text-xs text-violet-200 shadow-sm">
           {isEmpty ? "Ready" : "In context"}
@@ -242,13 +267,15 @@ export function NotebookChat({ notebookId, conversationId, messages, hasSources,
         <div className="mx-auto max-w-3xl">
           <ChatInput
             input={input}
-            onChange={(event) => setInput(event.target.value)}
+            onChange={(event) => { setInput(event.target.value); if (promptHint) setPromptHint(""); }}
             onSubmit={(event) => { event.preventDefault(); void submitQuestion(); }}
             onStop={() => abortRef.current?.abort()}
             isGenerating={status !== "idle"}
+            placeholder={`Ask questions about ${notebookTitle} or the uploaded sources...`}
             onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void submitQuestion(); } }}
           />
-          <p className="mt-3 text-center text-[11px] text-zinc-600">Lumina can make mistakes. Review important details against your sources.</p>
+          {promptHint && <p className="mt-2 text-center text-xs text-violet-200">{promptHint}</p>}
+          <p className="mt-3 text-center text-[11px] text-zinc-600">Responses are grounded only in your uploaded sources.</p>
         </div>
       </div>
     </main>

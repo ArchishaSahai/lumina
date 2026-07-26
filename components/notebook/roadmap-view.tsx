@@ -17,7 +17,6 @@ import {
   LoaderCircle,
   PlaySquare,
   RefreshCw,
-  Rocket,
   ShieldCheck,
   Target,
   TestTube2,

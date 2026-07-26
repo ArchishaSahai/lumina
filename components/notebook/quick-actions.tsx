@@ -4,13 +4,14 @@ type Props = {
   onGenerateSummary?: () => void;
   onGenerateRoadmap?: () => void;
   onOpenRoadmap?: () => void;
+  onGeneratePodcast?: () => void;
 };
 
-export function QuickActions({ onGenerateSummary, onGenerateRoadmap, onOpenRoadmap }: Props) {
+export function QuickActions({ onGenerateSummary, onGenerateRoadmap, onOpenRoadmap, onGeneratePodcast }: Props) {
   const actions = [
     { label: onOpenRoadmap ? "Open roadmap" : "Generate roadmap", icon: Compass, onClick: onOpenRoadmap || onGenerateRoadmap },
     { label: "Generate summary", icon: Files, onClick: onGenerateSummary },
-    { label: "Generate podcast", icon: Headphones },
+    { label: "Generate podcast", icon: Headphones, onClick: onGeneratePodcast },
     { label: "Settings", icon: Settings },
   ];
 

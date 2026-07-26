@@ -38,6 +38,7 @@ export default async function NotebookWorkspacePage({
   if (roadmapId) {
     try {
       activeRoadmap = await getRoadmapById(roadmapId);
+      if (activeRoadmap.notebookId !== id) activeRoadmap = null;
     } catch {
       activeRoadmap = null;
     }

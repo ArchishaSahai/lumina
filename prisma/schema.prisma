@@ -22,6 +22,7 @@ model Notebook {
   sources     Source[]
   conversations Conversation[]
   roadmaps    Roadmap[]
+  podcasts    Podcast[]
 
   @@index([userId, updatedAt])
 }
@@ -171,4 +172,40 @@ model RoadmapTask {
   phase          RoadmapPhase @relation(fields: [roadmapPhaseId], references: [id], onDelete: Cascade)
 
   @@index([roadmapPhaseId, taskIndex])
+}
+
+model Podcast {
+  id               String        @id @default(cuid())
+  notebookId       String
+  userId           String
+  title            String
+  prompt           String
+  settings         Json
+  transcript       String?
+  audioUrl         String?
+  duration         Int           @default(5)
+  voice            String        @default("Nova")
+  speakers         Int           @default(1)
+  tone             String        @default("conversational")
+  genre            String        @default("educational")
+  audience         String        @default("intermediate")
+  speakerCount     Int           @default(1)
+  voiceAssignments Json          @default("{}")
+  generationStatus PodcastStatus @default(GENERATING)
+  generationStage  String        @default("Preparing Sources")
+  generationError  String?
+  sources          Json?
+  status           PodcastStatus @default(GENERATING)
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  notebook         Notebook      @relation(fields: [notebookId], references: [id], onDelete: Cascade)
+
+  @@index([userId, updatedAt])
+  @@index([notebookId])
+}
+
+enum PodcastStatus {
+  GENERATING
+  READY
+  FAILED
 }

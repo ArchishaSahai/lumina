@@ -1,22 +1,20 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useClerk, useUser } from "@clerk/nextjs";
-import { BookOpen, LogOut, Plus, Search } from "lucide-react";
+import { useUser } from "@clerk/nextjs";
+import { BookOpen, Plus, Search } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { createNotebook, deleteNotebook, renameNotebook } from "@/app/actions/notebooks";
 import type { Notebook } from "@/lib/notebooks";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import { DashboardHeader } from "./dashboard-header";
 import { CreateNotebookDialog } from "./create-notebook-dialog";
 import { NotebookCard } from "./notebook-card";
 
 export function DashboardClient({ notebooks }: { notebooks: Notebook[] }) {
   const { user } = useUser();
-  const { signOut } = useClerk();
   const router = useRouter();
   const [notebookList, setNotebookList] = useState(notebooks);
   const [query, setQuery] = useState("");
@@ -24,7 +22,6 @@ export function DashboardClient({ notebooks }: { notebooks: Notebook[] }) {
   const visibleNotebooks = useMemo(() => notebookList.filter((notebook) => `${notebook.title} ${notebook.description}`.toLowerCase().includes(query.toLowerCase())), [notebookList, query]);
   const hasNotebooks = notebookList.length > 0;
   const name = user?.firstName ?? user?.fullName ?? "there";
-  const initials = (user?.firstName?.[0] ?? user?.lastName?.[0] ?? "L").toUpperCase();
   const greeting = hasNotebooks ? { heading: `Welcome back, ${name}.`, subheading: "Pick up where you left off." } : { heading: `Welcome, ${name}.`, subheading: "Let's build your first notebook." };
   const handleCreateNotebook = async (title: string, description: string) => { const notebook = await createNotebook({ title, description }); router.refresh(); router.push(`/dashboard/notebooks/${notebook.id}`); };
   const handleRenameNotebook = async (id: string, title: string) => { const previousNotebooks = notebookList; setNotebookList((current) => current.map((notebook) => notebook.id === id ? { ...notebook, title, updatedAt: new Date().toISOString() } : notebook)); try { await renameNotebook(id, { title }); toast.success("Notebook renamed"); router.refresh(); } catch (error) { setNotebookList(previousNotebooks); toast.error("Unable to rename notebook"); throw error; } };
@@ -32,47 +29,7 @@ export function DashboardClient({ notebooks }: { notebooks: Notebook[] }) {
 
   return (
     <main className="min-h-svh bg-black text-white">
-      <header className="border-b border-white/[.08] bg-black/70 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-4 sm:px-6">
-          <div className="flex items-center gap-6">
-            <a href="/dashboard" className="cursor-pointer text-lg font-semibold tracking-[-.04em] text-white hover:text-violet-200">
-              Lumina
-            </a>
-            <nav className="flex items-center gap-1 rounded-full border border-white/10 bg-white/[0.04] p-1 text-xs">
-              <a href="/dashboard" className="rounded-full bg-violet-500/20 px-3 py-1.5 font-medium text-white shadow-[0_0_12px_rgba(139,92,246,0.3)]">
-                Notebooks
-              </a>
-              <a href="/dashboard/roadmaps" className="rounded-full px-3 py-1.5 font-medium text-zinc-400 transition-colors hover:text-white">
-                Roadmaps
-              </a>
-            </nav>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <div className="hidden text-right sm:block">
-              <p className="text-sm font-medium">{user?.fullName ?? "Lumina member"}</p>
-              <p className="text-xs text-zinc-500">Your workspace</p>
-            </div>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button type="button" aria-label="Open account menu" className="cursor-pointer rounded-full outline-none hover:scale-105">
-                  <Avatar>
-                    <AvatarImage src={user?.imageUrl} alt="Your profile" />
-                    <AvatarFallback className="bg-violet-500/20 text-violet-200">{initials}</AvatarFallback>
-                  </Avatar>
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="min-w-44 border border-white/[.1] bg-zinc-950 p-1 text-white shadow-xl">
-                <DropdownMenuLabel className="px-2 py-1.5 text-zinc-400">{user?.fullName ?? "Lumina member"}</DropdownMenuLabel>
-                <DropdownMenuSeparator className="bg-white/[.08]" />
-                <DropdownMenuItem onSelect={() => signOut({ redirectUrl: "/" })} className="cursor-pointer px-2 py-2 text-zinc-300 focus:bg-white/[.08] focus:text-white">
-                  <LogOut className="size-4" /> Log out
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        </div>
-      </header>
+      <DashboardHeader activeTab="notebooks" contextLabel="Your workspace" />
 
       <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6 sm:py-16">
         <div className="flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">

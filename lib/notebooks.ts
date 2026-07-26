@@ -13,10 +13,18 @@ export type Notebook = {
   userId: string;
   createdAt: string;
   updatedAt: string;
+  sourceCount: number;
 };
 
-export function serializeNotebook(notebook: PrismaNotebook): Notebook {
-  return { ...notebook, createdAt: notebook.createdAt.toISOString(), updatedAt: notebook.updatedAt.toISOString() };
+type NotebookWithCounts = PrismaNotebook & { _count?: { sources?: number } };
+
+export function serializeNotebook(notebook: NotebookWithCounts): Notebook {
+  return {
+    ...notebook,
+    sourceCount: notebook._count?.sources ?? 0,
+    createdAt: notebook.createdAt.toISOString(),
+    updatedAt: notebook.updatedAt.toISOString(),
+  };
 }
 
 export function formatNotebookUpdatedAt(updatedAt: string) {

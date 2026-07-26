@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { buildGroundedPrompt, buildRetrievalPlan, listNotebookSources, rewriteQuery, searchNotebookChunks, selectCitationsForAnswer } from "@/lib/ai/rag";
 import { getChatModel } from "@/lib/ai/embeddings";
+import { validatePreRetrievalGuardrails, validateRetrievalEvidence } from "@/lib/ai/guardrails";
 import { appendMessage, createConversation } from "@/app/actions/chat";
 import { z } from "zod";
 import { sourceTypeLabel } from "@/lib/sources";
@@ -21,11 +22,18 @@ const chatRequestSchema = z.object({
   }).optional(),
 });
 
+function textResponse(answer: string, conversationId: string, citations: unknown[] = []) {
+  const response = new Response(answer, { headers: { "Content-Type": "text/plain; charset=utf-8" } });
+  response.headers.set("x-lumina-citations", encodeURIComponent(JSON.stringify(citations)));
+  response.headers.set("x-lumina-conversation-id", conversationId);
+  return response;
+}
+
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id: notebookId } = await params;
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const notebook = await prisma.notebook.findFirst({ where: { id: notebookId, userId } });
+  const notebook = await prisma.notebook.findFirst({ where: { id: notebookId, userId }, include: { sources: { select: { title: true } } } });
   if (!notebook) return NextResponse.json({ error: "Notebook not found." }, { status: 404 });
 
   const input = chatRequestSchema.parse(await request.json());
@@ -37,13 +45,25 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const retrievalPlan = buildRetrievalPlan(input.question, previousMessages.map((message) => ({ role: message.role.toLowerCase(), content: message.content })));
   await appendMessage(conversation.id, notebookId, "USER", input.question);
 
+  const guardrailContext = {
+    notebookId,
+    notebookTitle: notebook.title,
+    notebookDescription: notebook.description,
+    sourceTitles: notebook.sources.map((source) => source.title),
+    useCase: input.roadmapContext ? "roadmap" as const : "chat" as const,
+  };
+
+  const preRetrievalDecision = validatePreRetrievalGuardrails(input.question, guardrailContext, retrievalPlan);
+  if (!preRetrievalDecision.allowed) {
+    await appendMessage(conversation.id, notebookId, "ASSISTANT", preRetrievalDecision.message, []);
+    return textResponse(preRetrievalDecision.message, conversation.id);
+  }
+
   if (retrievalPlan.intent === "list_sources") {
     const sources = await listNotebookSources(notebookId);
     const answer = sources.length ? `You have uploaded ${sources.length} source${sources.length === 1 ? "" : "s"}:\n\n${sources.map((source, index) => `${index + 1}. ${source.title} (${sourceTypeLabel(source.type)}, ${source.status.toLowerCase()}${source.url ? `, ${source.url}` : ""})`).join("\n")}` : "You have not uploaded any sources to this notebook yet.";
     await appendMessage(conversation.id, notebookId, "ASSISTANT", answer, []);
-    const response = new Response(answer, { headers: { "Content-Type": "text/plain; charset=utf-8" } });
-    response.headers.set("x-lumina-citations", encodeURIComponent(JSON.stringify([])));
-    return response;
+    return textResponse(answer, conversation.id);
   }
 
   let rewritten = await rewriteQuery(retrievalPlan.query);
@@ -56,6 +76,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   }
 
   const retrieved = await searchNotebookChunks(notebookId, rewritten, retrievalPlan);
+  const retrievalDecision = validateRetrievalEvidence(retrieved, guardrailContext, retrievalPlan);
+  if (!retrievalDecision.allowed) {
+    await appendMessage(conversation.id, notebookId, "ASSISTANT", retrievalDecision.message, []);
+    return textResponse(retrievalDecision.message, conversation.id);
+  }
+
   let prompt = buildGroundedPrompt(rewritten, retrieved, retrievalPlan.intent);
 
   if (input.roadmapContext) {
