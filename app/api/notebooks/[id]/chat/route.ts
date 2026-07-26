@@ -2,7 +2,7 @@ import { streamText } from "ai";
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { buildGroundedPrompt, buildRetrievalPlan, listNotebookSources, rewriteQuery, searchNotebookChunks, selectCitationsForAnswer } from "@/lib/ai/rag";
+import { buildGroundedPrompt, buildRetrievalPlan, listNotebookSources, rewriteQuery, searchNotebookChunks, selectCitationsForAnswer, type RetrievedChunk } from "@/lib/ai/rag";
 import { getChatModel } from "@/lib/ai/embeddings";
 import { validatePreRetrievalGuardrails, validateRetrievalEvidence } from "@/lib/ai/guardrails";
 import { appendMessage, createConversation } from "@/app/actions/chat";
@@ -45,11 +45,17 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const retrievalPlan = buildRetrievalPlan(input.question, previousMessages.map((message) => ({ role: message.role.toLowerCase(), content: message.content })));
   await appendMessage(conversation.id, notebookId, "USER", input.question);
 
+  const sourceTitles = notebook.sources.map((source) => source.title);
+  if (input.roadmapContext) {
+    if (input.roadmapContext.activePhaseTitle) sourceTitles.push(input.roadmapContext.activePhaseTitle);
+    if (input.roadmapContext.selectedTask) sourceTitles.push(input.roadmapContext.selectedTask);
+  }
+
   const guardrailContext = {
     notebookId,
     notebookTitle: notebook.title,
     notebookDescription: notebook.description,
-    sourceTitles: notebook.sources.map((source) => source.title),
+    sourceTitles,
     useCase: input.roadmapContext ? "roadmap" as const : "chat" as const,
   };
 
@@ -75,7 +81,70 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     rewritten = `${focusStr} ${phaseStr} ${taskStr} ${rewritten}`.trim();
   }
 
-  const retrieved = await searchNotebookChunks(notebookId, rewritten, retrievalPlan);
+  const roadmapChunks: RetrievedChunk[] = [];
+  if (input.roadmapContext) {
+    const roadmap = await prisma.roadmap.findFirst({
+      where: { notebookId },
+      orderBy: { lastOpenedAt: "desc" },
+      include: {
+        phases: {
+          orderBy: { phaseIndex: "asc" },
+          include: {
+            tasks: {
+              orderBy: { taskIndex: "asc" }
+            }
+          }
+        }
+      }
+    });
+
+    if (roadmap) {
+      const activePhase = roadmap.phases.find(
+        (p) => p.title.toLowerCase().trim() === input.roadmapContext?.activePhaseTitle?.toLowerCase().trim()
+      );
+
+      let phaseContextText = `Roadmap Title: ${roadmap.title}\nRoadmap Goal: ${roadmap.goal}\nLevel: ${roadmap.currentLevel}\nLearning Style: ${roadmap.learningStyle}\n`;
+      if (activePhase) {
+        phaseContextText += `Current Phase: ${activePhase.title}\nPhase Objective: ${activePhase.objective ?? ""}\nWhy this phase matters: ${activePhase.whyThisPhaseMatters ?? ""}\nExpected Outcome: ${activePhase.expectedOutcome ?? ""}\n`;
+        
+        if (activePhase.tasks.length > 0) {
+          phaseContextText += `Tasks in this phase:\n` + activePhase.tasks.map(t => `- [${t.type ?? "Task"}] ${t.text}${t.duration ? ` (${t.duration})` : ""}${t.sourceRef ? ` [Source: ${t.sourceRef}]` : ""}`).join("\n") + "\n";
+        }
+
+        if (input.roadmapContext.selectedTask) {
+          const selectedTaskText = input.roadmapContext.selectedTask;
+          const matchedTask = activePhase.tasks.find(t => t.text.toLowerCase().trim() === selectedTaskText.toLowerCase().trim());
+          if (matchedTask) {
+            phaseContextText += `Selected Task Details:\nText: ${matchedTask.text}\nDuration: ${matchedTask.duration ?? ""}\nType: ${matchedTask.type ?? ""}\nSource Reference: ${matchedTask.sourceRef ?? ""}\n`;
+          } else {
+            phaseContextText += `Selected Task Details:\nText: ${selectedTaskText}\n`;
+          }
+        }
+      }
+
+      roadmapChunks.push({
+        id: "roadmap-context-chunk",
+        sourceId: "roadmap-context-source",
+        notebookId,
+        chunkIndex: 0,
+        sourceType: "MARKDOWN",
+        title: "Active Roadmap Context",
+        text: phaseContextText,
+        timestampStartMs: null,
+        timestampEndMs: null,
+        createdAt: new Date(),
+        score: 1.0,
+        source: {
+          id: "roadmap-context-source",
+          type: "MARKDOWN",
+          url: null,
+          filePath: null
+        }
+      });
+    }
+  }
+
+  const retrieved = [...roadmapChunks, ...await searchNotebookChunks(notebookId, rewritten, retrievalPlan)];
   if (process.env.NODE_ENV === "development") {
     console.info("[RAG Tracing] User Message:", input.question);
     console.info("[RAG Tracing] Detected Intent:", retrievalPlan.intent);
@@ -110,13 +179,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       if (process.env.NODE_ENV === "development") {
         console.info("[RAG Tracing] Raw LLM Response BEFORE Markdown Rendering:\n", text);
       }
-      await appendMessage(conversation.id, notebookId, "ASSISTANT", text, selectCitationsForAnswer(text, retrieved).map((chunk) => ({ sourceId: chunk.sourceId, sourceTitle: chunk.title, sourceType: chunk.source.type, sourceUrl: chunk.source.url, chunkId: chunk.id, preview: chunk.text.slice(0, 220), timestampStartMs: chunk.timestampStartMs, timestampEndMs: chunk.timestampEndMs })));
+      await appendMessage(conversation.id, notebookId, "ASSISTANT", text, selectCitationsForAnswer(text, retrieved).map((chunk) => ({ sourceId: chunk.sourceId, sourceTitle: chunk.title, sourceType: chunk.source.type, sourceUrl: chunk.source.url, chunkId: chunk.id, preview: chunk.text.slice(0, 220), timestampStartMs: chunk.timestampStartMs, timestampEndMs: chunk.timestampEndMs, pageNumber: chunk.source.type === "PDF" ? chunk.timestampStartMs : undefined })));
     },
   });
 
   const response = result.toTextStreamResponse();
   const headerCitations = selectCitationsForAnswer(rewritten, retrieved);
-  const citations = headerCitations.slice(0, retrievalPlan.broad ? 5 : 3).map((chunk) => ({ sourceId: chunk.sourceId, sourceTitle: chunk.title, sourceType: chunk.source.type, sourceUrl: chunk.source.url, chunkId: chunk.id, preview: chunk.text.slice(0, 220), timestampStartMs: chunk.timestampStartMs, timestampEndMs: chunk.timestampEndMs }));
+  const citations = headerCitations.slice(0, retrievalPlan.broad ? 5 : 3).map((chunk) => ({ sourceId: chunk.sourceId, sourceTitle: chunk.title, sourceType: chunk.source.type, sourceUrl: chunk.source.url, chunkId: chunk.id, preview: chunk.text.slice(0, 220), timestampStartMs: chunk.timestampStartMs, timestampEndMs: chunk.timestampEndMs, pageNumber: chunk.source.type === "PDF" ? chunk.timestampStartMs : undefined }));
   response.headers.set("x-lumina-citations", encodeURIComponent(JSON.stringify(citations)));
   response.headers.set("x-lumina-conversation-id", conversation.id);
   return response;

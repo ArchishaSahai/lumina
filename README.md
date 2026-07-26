@@ -1,16 +1,38 @@
+<div align="center">
+
 # Lumina
 
-> An AI-powered learning workspace for turning notebooks, documents, videos, and websites into grounded conversations, summaries, roadmaps, and podcasts.
+**An AI-powered learning workspace for turning documents, videos, and websites into grounded conversations, summaries, roadmaps, and podcasts.**
 
-![Next.js](https://img.shields.io/badge/Next.js-15-black?logo=next.js)
-![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)
-![OpenAI](https://img.shields.io/badge/OpenAI-API-412991?logo=openai&logoColor=white)
-![Pinecone](https://img.shields.io/badge/Pinecone-Vector_DB-00A67E)
-![Prisma](https://img.shields.io/badge/Prisma-ORM-2D3748?logo=prisma)
-![Clerk](https://img.shields.io/badge/Clerk-Auth-6C47FF?logo=clerk&logoColor=white)
-![License](https://img.shields.io/badge/License-MIT-green)
+![Next.js](https://img.shields.io/badge/Next.js-15-000000?style=for-the-badge&logo=next.js)
+![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?style=for-the-badge&logo=typescript&logoColor=white)
+![OpenAI](https://img.shields.io/badge/OpenAI-API-412991?style=for-the-badge&logo=openai&logoColor=white)
+![Pinecone](https://img.shields.io/badge/Pinecone-Vector_DB-00A67E?style=for-the-badge)
+![Prisma](https://img.shields.io/badge/Prisma-ORM-2D3748?style=for-the-badge&logo=prisma)
+![Clerk](https://img.shields.io/badge/Clerk-Auth-6C47FF?style=for-the-badge&logo=clerk&logoColor=white)
+![License](https://img.shields.io/badge/License-MIT-16A34A?style=for-the-badge)
 
-![Lumina hero screenshot placeholder](./public/screenshots/hero.png)
+</div>
+
+```mermaid
+flowchart TB
+  U["User sources<br/>PDFs | YouTube | Websites | Markdown"] --> N["Lumina notebooks"]
+  N --> R["Grounded RAG chat"]
+  N --> S["AI summaries"]
+  N --> M["Learning roadmaps"]
+  N --> P["AI podcasts"]
+  R --> C["Citations<br/>Pages | Timestamps | Links"]
+  S --> C
+  M --> C
+  P --> T["Transcript + audio playback"]
+
+  classDef core fill:#6d28d9,stroke:#a78bfa,color:#fff;
+  classDef product fill:#111827,stroke:#4c1d95,color:#e5e7eb;
+  classDef output fill:#064e3b,stroke:#34d399,color:#ecfdf5;
+  class N core;
+  class R,S,M,P product;
+  class C,T output;
+```
 
 ## Overview
 
@@ -33,13 +55,13 @@ The system is designed around a reusable RAG pipeline with deterministic guardra
 
 ## Features
 
-### 📚 Notebook Management
+### Notebook Management
 
 - Create dedicated notebooks for different topics
 - Organize multiple sources in a persistent workspace
 - Keep notebook state, conversations, roadmaps, and generated podcasts available across sessions
 
-### 📥 Multi-source Ingestion
+### Multi-source Ingestion
 
 - PDF uploads
 - YouTube video transcript ingestion
@@ -48,7 +70,7 @@ The system is designed around a reusable RAG pipeline with deterministic guardra
 - Automatic parsing and normalization
 - Semantic chunking and embedding generation
 
-### 💬 AI Chat (RAG)
+### AI Chat (RAG)
 
 - Grounded answers from uploaded notebook sources
 - Source citations alongside answers
@@ -58,13 +80,13 @@ The system is designed around a reusable RAG pipeline with deterministic guardra
 - Conversation history for follow-up questions
 - Streaming responses for responsive chat UX
 
-### ✨ AI Summary
+### AI Summary
 
 - Notebook-level summary workflows through the grounded RAG layer
 - Sources used for generated answers
 - Clickable timestamps, pages, and source references where available
 
-### 🗺 Personalized Learning Roadmaps
+### Personalized Learning Roadmaps
 
 - Roadmaps generated from notebook content
 - User preferences and learning goals
@@ -74,7 +96,7 @@ The system is designed around a reusable RAG pipeline with deterministic guardra
 - Task-oriented roadmap structure
 - Progress-ready architecture for study tracking
 
-### 🎙 AI Podcast Generator
+### AI Podcast Generator
 
 - Generate podcasts from notebook sources
 - Multi-speaker script generation
@@ -85,7 +107,7 @@ The system is designed around a reusable RAG pipeline with deterministic guardra
 - Audio playback
 - Persistent podcast library
 
-### 🛡 AI Guardrails
+### AI Guardrails
 
 - Prompt injection detection
 - Jailbreak detection
@@ -103,17 +125,37 @@ Lumina uses a retrieval-augmented generation pipeline that separates ingestion, 
 
 ```mermaid
 flowchart LR
-  A[Upload Source] --> B[Parsing]
-  B --> C[Normalization]
-  C --> D[Chunking]
-  D --> E[Embeddings]
-  E --> F[Pinecone Vector DB]
-  F --> G[Semantic Retrieval]
-  G --> H[Guardrails]
-  H -->|Allowed| I[OpenAI]
-  H -->|Blocked| J[Grounded Fallback]
-  I --> K[Streaming Response]
-  K --> L[Citations + Persistence]
+  subgraph Ingestion["Ingestion Layer"]
+    A["Upload source"] --> B["Parse + normalize"]
+    B --> C["Semantic chunking"]
+    C --> D["OpenAI embeddings"]
+  end
+
+  subgraph Storage["Storage Layer"]
+    D --> E["Pinecone vectors"]
+    C --> F["PostgreSQL + Prisma"]
+  end
+
+  subgraph Retrieval["RAG Runtime"]
+    Q["User prompt"] --> G["Pre-retrieval guardrails"]
+    G --> H["Semantic retrieval"]
+    E --> H
+    H --> I["Post-retrieval validation"]
+  end
+
+  subgraph Generation["Generation Layer"]
+    I -->|Enough context| J["OpenAI streaming response"]
+    I -->|Low confidence| K["Grounded fallback"]
+    J --> L["Citations + persistence"]
+    F --> L
+  end
+
+  classDef data fill:#052e16,stroke:#22c55e,color:#ecfdf5;
+  classDef guard fill:#451a03,stroke:#f59e0b,color:#fffbeb;
+  classDef model fill:#312e81,stroke:#818cf8,color:#eef2ff;
+  class E,F data;
+  class G,I,K guard;
+  class D,J model;
 ```
 
 ### RAG Flow
@@ -142,20 +184,9 @@ lib/ai/                 RAG, embeddings, Pinecone, and guardrail utilities
 lib/ingestion/          Source parsing, chunking, and ingestion pipeline
 lib/                    Prisma, storage, notebooks, podcasts, and shared utilities
 prisma/                 Prisma schema and migrations
-public/                 Static assets and screenshot placeholders
+public/                 Static assets
 types/                  Shared TypeScript declarations
 ```
-
-## Screenshots
-
-| Area | Preview |
-| --- | --- |
-| Landing Page | ![Landing page screenshot placeholder](./public/screenshots/landing.png) |
-| Dashboard | ![Dashboard screenshot placeholder](./public/screenshots/dashboard.png) |
-| Chat | ![Chat screenshot placeholder](./public/screenshots/chat.png) |
-| Summary | ![Summary screenshot placeholder](./public/screenshots/summary.png) |
-| Roadmap | ![Roadmap screenshot placeholder](./public/screenshots/roadmap.png) |
-| Podcast | ![Podcast screenshot placeholder](./public/screenshots/podcast.png) |
 
 ## Installation
 

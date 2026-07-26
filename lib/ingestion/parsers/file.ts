@@ -10,8 +10,16 @@ async function read(input: ParserInput) {
 
 export const pdfParser: SourceParser = {
   async parse(input) {
-    const { text } = await extractText(new Uint8Array(await read(input)), { mergePages: true });
-    return documentFromText(text);
+    const { text } = await extractText(new Uint8Array(await read(input)), { mergePages: false });
+    const segments = text.map((pageText, index) => ({
+      text: normalizeText(pageText),
+      timestampStartMs: index + 1,
+      timestampEndMs: index + 1,
+    })).filter((seg) => seg.text.length > 0);
+
+    const fullText = segments.map((seg) => seg.text).join("\n");
+    if (!fullText) throw new Error("No readable text was found in this source.");
+    return { text: fullText, segments };
   },
 };
 
