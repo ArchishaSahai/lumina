@@ -26,6 +26,23 @@ export async function saveFile(file: File, directory: string): Promise<StoredFil
   return { path: path.posix.join(safeDirectory, filename) };
 }
 
+export async function saveBuffer(buffer: Buffer | Uint8Array, directory: string, extension: string): Promise<StoredFile> {
+  const safeDirectory = directory.replace(/[^a-zA-Z0-9_-]/g, "");
+  const safeExtension = extension.startsWith(".") ? extension : `.${extension}`;
+  const filename = `${randomUUID()}${safeExtension.toLowerCase()}`;
+  const destinationDirectory = path.join(storageRoot, safeDirectory);
+
+  try {
+    await mkdir(destinationDirectory, { recursive: true });
+    await writeFile(path.join(destinationDirectory, filename), buffer);
+  } catch (cause) {
+    console.error("Storage write failed", { storageRoot, directory: safeDirectory, filename, cause });
+    throw new Error("We could not store this file. Please try again in a moment.");
+  }
+
+  return { path: path.posix.join(safeDirectory, filename) };
+}
+
 export async function deleteFile(filePath: string): Promise<void> {
   await rm(resolveStoragePath(filePath), { force: true });
 }

@@ -14,7 +14,7 @@ async function getAuthenticatedUserId() {
 
 export async function getUserNotebooks() {
   const userId = await getAuthenticatedUserId();
-  const notebooks = await prisma.notebook.findMany({ where: { userId }, orderBy: { updatedAt: "desc" } });
+  const notebooks = await prisma.notebook.findMany({ where: { userId }, include: { _count: { select: { sources: true } } }, orderBy: { updatedAt: "desc" } });
   return notebooks.map(serializeNotebook);
 }
 

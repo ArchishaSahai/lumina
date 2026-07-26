@@ -10,6 +10,17 @@ function renderInline(text: string): ReactNode[] {
 
 export function MarkdownContent({ content }: { content: string }) {
   const normalized = content
+    .replace(/```json[\s\S]*?```/g, (match) => {
+      try {
+        const raw = match.replace(/^```json\s*/, "").replace(/\s*```$/, "");
+        const obj = JSON.parse(raw);
+        if (obj && typeof obj === "object") {
+          if (obj.overview) return obj.overview;
+          if (obj.title) return `**${obj.title}**`;
+        }
+      } catch {}
+      return match;
+    })
     .replace(/\[Source\s+\d+\]/gi, "")
     .replace(/^(#{1,6}\s+.+)$/gm, "\n\n$1\n\n")
     .trim();
@@ -23,6 +34,8 @@ export function MarkdownContent({ content }: { content: string }) {
           return <hr key={index} className="my-4 border-t border-white/[.08]" />;
         }
         if (block.startsWith("```") && block.endsWith("```")) {
+          const lang = block.match(/^```([a-zA-Z0-9_-]+)/)?.[1] || "";
+          if (lang.toLowerCase() === "json") return null;
           return (
             <pre key={index} className="my-2 overflow-x-auto rounded-xl border border-white/[.08] bg-black/50 p-3.5 text-xs leading-5 text-violet-200 font-mono">
               <code>{block.replace(/^```[^\n]*\n?/, "").replace(/```$/, "")}</code>
@@ -87,3 +100,4 @@ export function MarkdownContent({ content }: { content: string }) {
     </div>
   );
 }
+

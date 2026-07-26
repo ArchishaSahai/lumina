@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useAuth } from "@clerk/nextjs";
 import { motion, useSpring } from "framer-motion";
 import { ArrowRight, Code2, FileText, Globe2, Mic2, Play, Video } from "lucide-react";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 
 const cards = [
@@ -24,17 +25,19 @@ export function Hero() {
     setPointer({ x: (event.clientX - rect.left - rect.width / 2) / 34, y: (event.clientY - rect.top - rect.height / 2) / 34 });
   };
 
-  return <section id="top" onPointerMove={handlePointerMove} onPointerLeave={() => setPointer({ x: 0, y: 0 })} className="relative isolate flex min-h-[calc(100svh-4rem)] items-center overflow-hidden px-4 pb-12 pt-20 sm:px-6 sm:pt-24 lg:pt-24">
+  return <section id="top" onPointerMove={handlePointerMove} onPointerLeave={() => setPointer({ x: 0, y: 0 })} className="relative isolate flex min-h-svh items-center overflow-hidden px-4 pb-16 pt-24 sm:px-6 sm:pb-20 sm:pt-28 lg:pt-28">
     <div className="grid-fade absolute inset-0 -z-30 opacity-70" />
+    <div className="pointer-events-none absolute inset-0 -z-30 bg-[radial-gradient(circle_at_50%_12%,rgba(139,92,246,.14),transparent_34%),radial-gradient(ellipse_at_50%_82%,rgba(88,28,135,.12),transparent_48%)]" />
+    <div className="hero-light-field pointer-events-none absolute inset-0 -z-30" />
     <div className="hero-noise pointer-events-none absolute inset-0 -z-20" />
     <div className="hero-atmosphere absolute left-1/2 top-[46%] -z-20 -translate-x-1/2 -translate-y-1/2" />
     <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-32 bg-gradient-to-b from-transparent via-black/70 to-black" />
-    <div className="mx-auto w-full max-w-6xl text-center">
+    <div className="relative z-20 mx-auto w-full max-w-6xl text-center">
       <motion.div initial={{ opacity: 0, y: 14, filter: "blur(8px)" }} animate={{ opacity: 1, y: 0, filter: "blur(0px)" }} transition={{ duration: .65 }} className="mx-auto mb-5 flex w-fit items-center gap-2 rounded-full border border-violet-300/20 bg-violet-400/[.09] px-3 py-1.5 text-xs text-violet-200"><span className="size-1.5 rounded-full bg-violet-300 shadow-[0_0_10px_#c4b5fd]" /> A calmer way to learn</motion.div>
       <motion.h1 initial={{ opacity: 0, y: 22, filter: "blur(10px)" }} animate={{ opacity: 1, y: 0, filter: "blur(0px)" }} transition={{ duration: .8, delay: .1 }} className="font-heading mx-auto max-w-4xl text-balance text-4xl font-semibold tracking-[-.065em] sm:text-6xl lg:text-7xl lg:leading-[.98]">Your second brain for <span className="bg-gradient-to-b from-violet-100 to-violet-500 bg-clip-text text-transparent">everything you learn.</span></motion.h1>
       <motion.p initial={{ opacity: 0, y: 18, filter: "blur(5px)" }} animate={{ opacity: 1, y: 0, filter: "blur(0px)" }} transition={{ duration: .7, delay: .22 }} className="mx-auto mt-5 max-w-2xl text-pretty text-sm leading-6 text-zinc-400 sm:text-base sm:leading-7">Upload PDFs, YouTube videos, websites, GitHub repositories, transcripts and documents. Chat with your knowledge, create study roadmaps and understand everything faster with AI.</motion.p>
-      <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ type: "spring", stiffness: 160, damping: 19, delay: .35 }} className="mt-6 flex flex-col justify-center gap-3 sm:flex-row"><Button size="lg" onClick={() => { window.location.assign(isSignedIn ? "/dashboard" : "/sign-up"); }} className="h-11 bg-violet-500 px-6 text-white shadow-[0_0_32px_rgba(139,92,246,.35)] transition-all hover:-translate-y-1 hover:bg-violet-400 hover:shadow-[0_14px_36px_rgba(139,92,246,.4)]">Start free <ArrowRight className="ml-2 size-4" /></Button><Button asChild size="lg" variant="outline" className="h-11 border-white/[.15] bg-white/[.04] px-6 text-white transition-all hover:-translate-y-1 hover:bg-white/[.09]"><a href="#demo"><Play className="mr-2 size-4 fill-current" /> Watch demo</a></Button></motion.div>
-      <motion.div style={{ x, y }} className="relative mx-auto mt-6 h-[180px] max-w-5xl sm:mt-7 sm:h-[210px]" aria-label="Lumina AI core surrounded by knowledge sources">
+      <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ type: "spring", stiffness: 160, damping: 19, delay: .35 }} className="mt-6 flex flex-col justify-center gap-3 sm:flex-row"><Button asChild size="lg" className="h-11 bg-violet-500 px-6 text-white shadow-[0_0_22px_rgba(139,92,246,.28)] transition-all hover:-translate-y-1 hover:bg-violet-400 hover:shadow-[0_12px_28px_rgba(139,92,246,.32)]"><Link href={isSignedIn ? "/dashboard" : "/sign-up"}>Start free <ArrowRight className="ml-2 size-4" /></Link></Button><Button asChild size="lg" variant="outline" className="h-11 border-white/[.15] bg-white/[.04] px-6 text-white transition-all hover:-translate-y-1 hover:bg-white/[.09]"><a href="#demo"><Play className="mr-2 size-4 fill-current" /> Watch demo</a></Button></motion.div>
+      <motion.div style={{ x, y }} className="pointer-events-none relative mx-auto mt-6 h-[180px] max-w-5xl sm:mt-7 sm:h-[210px]" aria-label="Lumina AI core surrounded by knowledge sources">
         <div className="core-aura absolute left-1/2 top-1/2 size-64 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(circle,rgba(237,233,254,.3)_0%,rgba(167,139,250,.18)_25%,rgba(109,40,217,.08)_48%,transparent_72%)] blur-3xl sm:size-80" />
         <div className="core-breathe absolute left-1/2 top-1/2 size-52 rounded-full bg-[radial-gradient(circle,rgba(221,214,254,.5)_0%,rgba(139,92,246,.23)_30%,rgba(91,33,182,.08)_50%,transparent_70%)] blur-2xl sm:size-64" />
         <div className="core-haze absolute left-1/2 top-1/2 size-44 rounded-full bg-[linear-gradient(229deg,rgba(223,122,254,.42)_13%,transparent_35%,transparent_64%,rgba(129,74,200,.4)_88%)] blur-[10px] sm:size-52" />

@@ -5,7 +5,7 @@ import { embedText } from "./embeddings";
 import { getPineconeIndex } from "./pinecone";
 
 export type RetrievedChunk = SourceChunk & { score: number; source: { id: string; type: SourceType; url: string | null; filePath: string | null } };
-export type QueryIntent = "overview" | "summarization" | "specific" | "comparison" | "follow_up" | "explanation" | "study_guide" | "list_sources";
+export type QueryIntent = "overview" | "summarization" | "roadmap" | "specific" | "comparison" | "follow_up" | "explanation" | "study_guide" | "list_sources";
 export type RetrievalPlan = { intent: QueryIntent; query: string; limit: number; topK: number; broad: boolean };
 type SearchDb = {
   source: { findMany(args: { where: { notebookId: string }; orderBy?: { createdAt: "asc" | "desc" }; select: { id: true; title: true; type: true; status: true; url: true; createdAt: true } }): Promise<Array<{ id: string; title: string; type: SourceType; status: string; url: string | null; createdAt: Date }>> };
@@ -44,6 +44,7 @@ export async function rewriteQuery(question: string) {
 export function classifyQueryIntent(question: string, history: Array<{ role: string; content: string }> = []): QueryIntent {
   const normalized = question.toLowerCase().trim();
   if (/\b(what (have|did) i upload|uploaded resources?|list (my |the )?(sources|resources|uploads)|show (my |the )?(sources|resources|uploads))\b/.test(normalized)) return "list_sources";
+  if (/\b(roadmap|learning path|learning roadmap|study plan|curriculum|step by step plan)\b/i.test(normalized)) return "roadmap";
   if (/\b(compare|contrast|versus| vs\.? |differences?|similarities?|which is better|pros and cons)\b/.test(normalized)) return "comparison";
   if (/\b(study guide|study notes|revision notes|flashcards?|outline|quiz me|key takeaways|important concepts?)\b/.test(normalized)) return "study_guide";
   if (/\b(summarize|summary|tl;?dr|recap|condense|main points?)\b/.test(normalized)) return "summarization";
@@ -63,10 +64,10 @@ export function buildRetrievalPlan(question: string, history: Array<{ role: stri
   const intent = classifyQueryIntent(question, history);
   const historyContext = history.slice(-6).map((message) => `${message.role}: ${message.content}`).join("\n");
   const query = intent === "follow_up" && historyContext ? `${historyContext}\nuser: ${question}` : question.trim();
-  const broad = ["overview", "summarization", "study_guide", "list_sources"].includes(intent);
-  const limitByIntent: Record<QueryIntent, number> = { overview: 10, summarization: 10, specific: 5, comparison: 8, follow_up: 6, explanation: 6, study_guide: 10, list_sources: 0 };
+  const broad = ["overview", "summarization", "roadmap", "study_guide", "list_sources"].includes(intent);
+  const limitByIntent: Record<QueryIntent, number> = { overview: 5, summarization: 5, roadmap: 5, specific: 3, comparison: 4, follow_up: 3, explanation: 3, study_guide: 5, list_sources: 0 };
   const limit = limitByIntent[intent];
-  return { intent, query, limit, topK: broad ? 40 : Math.max(limit * 4, 12), broad };
+  return { intent, query, limit, topK: broad ? 20 : Math.max(limit * 4, 6), broad };
 }
 
 const minimumSimilarity = 0.45;
@@ -240,12 +241,68 @@ For each section below, write 2-4 detailed sentences or bullet points based on t
 Generate the full summary now.`;
   }
 
-  return `Notebook Content Context:
+  if (intent === "roadmap" || /\b(roadmap|learning path)\b/i.test(question)) {
+    return `Notebook Content Context:
 ${context}
 
-${languageGuidance}Answer the question using only the context above. Do not mention source labels or citation markers; Lumina renders supporting sources separately. If the context does not answer the question, say so plainly.
+Synthesize the provided notebook content context above into a dependency-aware, personalized study roadmap based on the user's prompt parameters: "${question}".
 
-Question: ${question}`;
+REQUIREMENTS:
+1. Order topics strictly by prerequisites (foundations -> core concepts -> advanced applications).
+2. Explain why each phase comes before the next in "prerequisiteFlow".
+3. For each phase include:
+   - "objective", "whyThisPhaseMatters", "estimatedHours", "expectedOutcome", "successCriteria"
+   - "difficulty": "Easy" | "Moderate" | "Challenging"
+   - Actionable "tasks" with "type" ("Read", "Watch", "Practice", "Build", "Revise", "Self-test"), "duration", and "sourceRef" referencing uploaded sources with pages/timestamps whenever possible.
+4. Provide a final "scorecard":
+   - "topicsCovered" (number)
+   - "skillsGained" (array of strings)
+   - "projectsCompleted" (number)
+   - "readinessPercentage" (number, e.g. 92)
+
+You MUST output ONLY a valid JSON object wrapped in \`\`\`json ... \`\`\` code fences matching this schema:${languageGuidance}
+
+\`\`\`json
+{
+  "title": "Personalized Learning Roadmap",
+  "goal": "Exam Prep / Learn from Scratch / etc.",
+  "estimatedDuration": "2 Weeks • 1 Hr/Day",
+  "level": "Beginner / Intermediate / Advanced",
+  "learningStyle": "Balanced / Theory First / Practice First",
+  "overview": "Clear 2-3 sentence summary of what this learning path achieves.",
+  "prerequisiteFlow": "Explain why Phase 1 comes before Phase 2 and how concepts build sequentially.",
+  "phases": [
+    {
+      "id": "phase-1",
+      "title": "Phase 1: Foundations & Prerequisites",
+      "difficulty": "Easy",
+      "estimatedHours": "4 Hours",
+      "objective": "Master foundational concepts before moving to core mechanics",
+      "whyThisPhaseMatters": "Establishes essential vocabulary and architecture needed for advanced topics",
+      "expectedOutcome": "Solid grasp of foundational principles",
+      "successCriteria": ["Can explain basic concepts", "Pass self-assessment test"],
+      "tasks": [
+        { "id": "p1-t1", "type": "Read", "text": "Read Operating Systems lecture notes on process states", "duration": "30 min", "sourceRef": "Operating Systems Lecture.pdf" },
+        { "id": "p1-t2", "type": "Watch", "text": "Watch YouTube video on CPU scheduling", "duration": "20 min", "sourceRef": "Operating Systems Lecture @ 12:18" }
+      ],
+      "recommendedSources": ["Operating Systems Lecture.pdf"]
+    }
+  ],
+  "scorecard": {
+    "topicsCovered": 8,
+    "skillsGained": ["Process Scheduling", "Virtual Memory Translation", "Deadlock Avoidance"],
+    "projectsCompleted": 1,
+    "readinessPercentage": 92
+  },
+  "finalOutcome": "Mastery of core concepts with high readiness for target goal."
+}
+\`\`\`
+
+Generate the structured JSON roadmap now.`;
+  }
+
+  const overviewGuidance = ["overview", "summarization", "study_guide"].includes(intent) ? " The user is asking broadly across the notebook, so synthesize themes from all provided context instead of narrowing to one phrase match." : "";
+  return `Answer the question using only the context below.${overviewGuidance}${languageGuidance} Do not mention source labels, citation markers, or references; Lumina renders supporting sources separately. If the context does not answer the question, say so plainly.\n\nContext:\n${context}\n\nQuestion: ${question}`;
 }
 
 export function isNegativeResponse(answer: string): boolean {

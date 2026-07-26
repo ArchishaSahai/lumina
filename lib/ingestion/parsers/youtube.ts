@@ -404,7 +404,7 @@ export async function fetchTrackSegments(track: CaptionTrack, videoId?: string):
     kind: track.kind,
     vssId: track.vssId,
     name: track.name?.simpleText ?? track.name,
-    isTranslatable: Boolean((track as Record<string, unknown>).isTranslatable),
+    isTranslatable: (track as Record<string, unknown>).isTranslatable ?? false,
   });
 
   const candidateUrls: Array<{ url: string; fmtLabel: string }> = [];

@@ -1,15 +1,18 @@
-import { Headphones, ListTree, Settings, Files } from "lucide-react";
+import { Compass, Files, Headphones, Settings } from "lucide-react";
 
 type Props = {
   onGenerateSummary?: () => void;
+  onGenerateRoadmap?: () => void;
+  onOpenRoadmap?: () => void;
+  onGeneratePodcast?: () => void;
 };
 
-export function QuickActions({ onGenerateSummary }: Props) {
+export function QuickActions({ onGenerateSummary, onGenerateRoadmap, onOpenRoadmap, onGeneratePodcast }: Props) {
   const actions = [
-    { label: "Generate podcast", icon: Headphones, onClick: undefined },
-    { label: "Generate roadmap", icon: ListTree, onClick: undefined },
+    { label: onOpenRoadmap ? "Open roadmap" : "Generate roadmap", icon: Compass, onClick: onOpenRoadmap || onGenerateRoadmap },
     { label: "Generate summary", icon: Files, onClick: onGenerateSummary },
-    { label: "Settings", icon: Settings, onClick: undefined },
+    { label: "Generate podcast", icon: Headphones, onClick: onGeneratePodcast },
+    { label: "Settings", icon: Settings },
   ];
 
   return (
@@ -21,9 +24,9 @@ export function QuickActions({ onGenerateSummary }: Props) {
             type="button"
             key={label}
             onClick={onClick}
-            className="group flex min-h-20 cursor-pointer flex-col justify-between rounded-xl border border-white/[.08] bg-white/[.035] p-3 text-left transition-all hover:-translate-y-0.5 hover:border-violet-300/30 hover:bg-violet-400/[.08]"
+            className="group flex min-h-20 cursor-pointer flex-col justify-between rounded-xl border border-white/[.08] bg-white/[.035] p-3 text-left transition-all duration-300 hover:-translate-y-0.5 hover:border-violet-400/40 hover:bg-violet-500/10 hover:shadow-[0_4px_20px_rgba(139,92,246,0.12)] active:scale-[0.98]"
           >
-            <Icon className="size-4 text-violet-300" />
+            <Icon className="size-4 text-violet-300 transition-transform duration-300 group-hover:scale-110" />
             <span className="text-xs font-medium text-zinc-300 group-hover:text-white">{label}</span>
           </button>
         ))}

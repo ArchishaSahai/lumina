@@ -21,6 +21,8 @@ model Notebook {
   updatedAt   DateTime @updatedAt
   sources     Source[]
   conversations Conversation[]
+  roadmaps    Roadmap[]
+  podcasts    Podcast[]
 
   @@index([userId, updatedAt])
 }
@@ -80,12 +82,18 @@ model Conversation {
   id          String      @id @default(cuid())
   notebookId  String
   title       String
+  type        ConversationType @default(NOTEBOOK)
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
   notebook    Notebook    @relation(fields: [notebookId], references: [id], onDelete: Cascade)
   messages    Message[]
 
   @@index([notebookId, updatedAt])
+}
+
+enum ConversationType {
+  NOTEBOOK
+  ROADMAP
 }
 
 enum MessageRole {
@@ -104,4 +112,100 @@ model Message {
   conversation  Conversation  @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
   @@index([conversationId, createdAt])
+}
+
+model Roadmap {
+  id                 String         @id @default(cuid())
+  userId             String
+  notebookId         String
+  title              String
+  goal               String
+  timeline           String
+  dailyStudyTime     String
+  currentLevel       String
+  learningStyle      String
+  structuredJson     Json
+  progressPercentage Int            @default(0)
+  currentPhaseTitle  String?
+  lastOpenedAt       DateTime       @default(now())
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+  notebook           Notebook       @relation(fields: [notebookId], references: [id], onDelete: Cascade)
+  phases             RoadmapPhase[]
+
+  @@index([userId, updatedAt])
+  @@index([notebookId])
+}
+
+model RoadmapPhase {
+  id                  String        @id @default(cuid())
+  roadmapId           String
+  phaseIndex          Int
+  title               String
+  difficulty          String?
+  estimatedHours      String?
+  objective           String?
+  whyThisPhaseMatters String?
+  expectedOutcome     String?
+  successCriteria     Json?
+  recommendedSources  Json?
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+  roadmap             Roadmap       @relation(fields: [roadmapId], references: [id], onDelete: Cascade)
+  tasks               RoadmapTask[]
+
+  @@index([roadmapId, phaseIndex])
+}
+
+model RoadmapTask {
+  id             String       @id @default(cuid())
+  roadmapPhaseId String
+  taskIndex      Int
+  type           String?
+  text           String
+  duration       String?
+  sourceRef      String?
+  completed      Boolean      @default(false)
+  completedAt    DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  phase          RoadmapPhase @relation(fields: [roadmapPhaseId], references: [id], onDelete: Cascade)
+
+  @@index([roadmapPhaseId, taskIndex])
+}
+
+model Podcast {
+  id               String        @id @default(cuid())
+  notebookId       String
+  userId           String
+  title            String
+  prompt           String
+  settings         Json
+  transcript       String?
+  audioUrl         String?
+  duration         Int           @default(5)
+  voice            String        @default("Nova")
+  speakers         Int           @default(1)
+  tone             String        @default("conversational")
+  genre            String        @default("educational")
+  audience         String        @default("intermediate")
+  speakerCount     Int           @default(1)
+  voiceAssignments Json          @default("{}")
+  generationStatus PodcastStatus @default(GENERATING)
+  generationStage  String        @default("Preparing Sources")
+  generationError  String?
+  sources          Json?
+  status           PodcastStatus @default(GENERATING)
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  notebook         Notebook      @relation(fields: [notebookId], references: [id], onDelete: Cascade)
+
+  @@index([userId, updatedAt])
+  @@index([notebookId])
+}
+
+enum PodcastStatus {
+  GENERATING
+  READY
+  FAILED
 }

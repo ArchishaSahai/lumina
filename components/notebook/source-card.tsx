@@ -14,18 +14,37 @@ import type { NotebookSource } from "@/lib/sources";
 const stages = ["Uploading", "Extracting text", "Creating chunks", "Generating embeddings", "Indexing in Pinecone", "Ready"];
 const typeStyles = "bg-violet-400/[.08] text-violet-200";
 
-export function SourceCard({ source, index, highlighted = false, onDeleted, onRenamed }: { source: NotebookSource; index: number; highlighted?: boolean; onDeleted: (sourceId: string) => void; onRenamed?: (updatedSource: NotebookSource) => void }) {
+type Props = {
+  source: NotebookSource;
+  index: number;
+  highlighted?: boolean;
+  onDeleted: (sourceId: string) => void;
+  onRenamed?: (updatedSource: NotebookSource) => void;
+};
+
+export function SourceCard({ source, index, highlighted = false, onDeleted, onRenamed }: Props) {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [renameOpen, setRenameOpen] = useState(false);
   const [title, setTitle] = useState(source.title);
   const [isPending, startTransition] = useTransition();
   const [detailsOpen, setDetailsOpen] = useState(false);
   const cardRef = useRef<HTMLElement | null>(null);
+
   const Icon = source.type === "YOUTUBE" ? Film : source.type === "WEBSITE" ? Globe2 : source.type === "MARKDOWN" || source.type === "TEXT" || source.type === "VTT" ? FileCode2 : FileText;
   const typeLabel = source.type === "VTT" ? "Transcript" : source.type[0] + source.type.slice(1).toLowerCase();
   const statusLabel = source.status[0] + source.status.slice(1).toLowerCase();
 
-  const remove = () => startTransition(async () => { try { await deleteSource(source.id); onDeleted(source.id); setDeleteOpen(false); toast.success("Source deleted"); } catch { toast.error("Unable to delete source"); } });
+  const remove = () => startTransition(async () => {
+    try {
+      await deleteSource(source.id);
+      onDeleted(source.id);
+      setDeleteOpen(false);
+      toast.success("Source deleted");
+    } catch {
+      toast.error("Unable to delete source");
+    }
+  });
+
   const rename = () => startTransition(async () => {
     const trimmed = title.trim();
     if (!trimmed) return;
@@ -38,8 +57,26 @@ export function SourceCard({ source, index, highlighted = false, onDeleted, onRe
       toast.error("Unable to rename source");
     }
   });
-  const retry = () => startTransition(async () => { try { await retrySource(source.id); toast.success("Retrying source processing"); } catch { toast.error("Unable to retry source"); } });
-  const openSource = () => { if (source.status === "PROCESSING" || source.status === "FAILED") { setDetailsOpen(true); return; } if (!source.url && source.type !== "PDF") return; const target = source.url ?? `/api/sources/${source.id}/open`; window.open(target, "_blank", "noopener,noreferrer"); };
+
+  const retry = () => startTransition(async () => {
+    try {
+      await retrySource(source.id);
+      toast.success("Retrying source processing");
+    } catch {
+      toast.error("Unable to retry source");
+    }
+  });
+
+  const openSource = () => {
+    if (source.status === "PROCESSING" || source.status === "FAILED") {
+      setDetailsOpen(true);
+      return;
+    }
+    if (!source.url && source.type !== "PDF") return;
+    const target = source.url ?? `/api/sources/${source.id}/open`;
+    window.open(target, "_blank", "noopener,noreferrer");
+  };
+
   const currentStage = source.processingError?.startsWith("stage:") ? source.processingError.slice(6) : "EXTRACTING";
   const stageIndex = { UPLOADING: 0, EXTRACTING: 1, CHUNKING: 2, EMBEDDING: 3, INDEXING: 4 }[currentStage] ?? 0;
 
@@ -57,7 +94,9 @@ export function SourceCard({ source, index, highlighted = false, onDeleted, onRe
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: index * 0.05 }}
         whileHover={{ y: -2 }}
-        className={`group cursor-pointer rounded-xl border p-3 transition-colors hover:border-violet-300/25 hover:bg-violet-400/[.06] ${highlighted ? "border-violet-300/50 bg-violet-400/[.12] shadow-[0_0_24px_rgba(167,139,250,.22)]" : "border-white/[.08] bg-white/[.035]"}`}
+        className={`group cursor-pointer rounded-xl border p-3 transition-all duration-300 hover:border-violet-400/30 hover:bg-violet-500/10 hover:shadow-[0_4px_20px_rgba(139,92,246,0.12)] ${
+          highlighted ? "border-violet-300/50 bg-violet-400/[.12] shadow-[0_0_24px_rgba(167,139,250,.22)]" : "border-white/[.08] bg-white/[.035]"
+        }`}
       >
         <div className="flex items-center gap-3">
           <span className={`grid size-9 shrink-0 place-items-center rounded-lg ${typeStyles}`}>
@@ -75,20 +114,14 @@ export function SourceCard({ source, index, highlighted = false, onDeleted, onRe
             <DropdownMenuTrigger asChild>
               <button
                 type="button"
-                onClick={(event) => {
-                  event.stopPropagation();
-                }}
+                onClick={(event) => event.stopPropagation()}
                 aria-label={`More options for ${source.title}`}
                 className="cursor-pointer rounded-md p-1 text-zinc-600 transition-colors hover:bg-white/[.08] hover:text-white"
               >
                 <MoreHorizontal className="size-4" />
               </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent
-              align="end"
-              onClick={(event) => event.stopPropagation()}
-              className="border border-white/[.1] bg-zinc-950 p-1 text-white shadow-xl"
-            >
+            <DropdownMenuContent align="end" onClick={(event) => event.stopPropagation()} className="border border-white/[.1] bg-zinc-950 p-1 text-white shadow-xl">
               <DropdownMenuItem
                 onSelect={(event) => {
                   event.stopPropagation();
@@ -118,6 +151,7 @@ export function SourceCard({ source, index, highlighted = false, onDeleted, onRe
           </div>
         )}
       </motion.article>
+
       <Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>
         <DialogContent className="border-white/[.12] bg-zinc-950 p-6 text-white sm:max-w-md">
           <DialogHeader>
@@ -148,13 +182,12 @@ export function SourceCard({ source, index, highlighted = false, onDeleted, onRe
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
       <Dialog open={renameOpen} onOpenChange={(open) => { if (!isPending) setRenameOpen(open); }}>
         <DialogContent className="border-white/[.12] bg-zinc-950 p-6 text-white sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Rename source</DialogTitle>
-            <DialogDescription className="text-zinc-400">
-              Choose a clear name for this source.
-            </DialogDescription>
+            <DialogDescription className="text-zinc-400">Choose a clear name for this source.</DialogDescription>
           </DialogHeader>
           <Input
             value={title}
@@ -173,6 +206,7 @@ export function SourceCard({ source, index, highlighted = false, onDeleted, onRe
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
       <Dialog open={deleteOpen} onOpenChange={(open) => { if (!isPending) setDeleteOpen(open); }}>
         <DialogContent className="border-white/[.12] bg-zinc-950 p-6 text-white sm:max-w-md">
           <DialogHeader>
