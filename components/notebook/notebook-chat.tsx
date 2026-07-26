@@ -15,7 +15,7 @@ import type { ChatMessage, ChatCitation } from "./notebook-workspace-data";
 type Props = {
   notebookId: string;
   notebookTitle: string;
-  sourceNames: string[];
+  sources: Array<{ id?: string; title: string }>;
   conversationId: string | null;
   messages: ChatMessage[];
   hasSources: boolean;
@@ -38,7 +38,7 @@ function isGenericPrompt(prompt: string) {
   return /^(hi|hello|hey|yo|sup|thanks|thank you|ok|okay)$/.test(normalized) || /\b(tell me a joke|joke|write a poem|sing a song|weather|who are you)\b/.test(normalized);
 }
 
-export function NotebookChat({ notebookId, notebookTitle, sourceNames, conversationId, messages, hasSources, onConversationCreated, onConversationTitleChanged, onConversationUpdated, onCitationView, onRefresh, onTriggerPrompt }: Props) {
+export function NotebookChat({ notebookId, notebookTitle, sources, conversationId, messages, hasSources, onConversationCreated, onConversationTitleChanged, onConversationUpdated, onCitationView, onRefresh, onTriggerPrompt }: Props) {
   const router = useRouter();
   const [liveMessages, setLiveMessages] = useState<MessageState[]>(messages);
   const [input, setInput] = useState("");
@@ -221,15 +221,15 @@ export function NotebookChat({ notebookId, notebookTitle, sourceNames, conversat
           <p className="mt-1 text-sm text-zinc-500">
             {status === "searching" ? "Searching sources..." : status === "generating" ? "Generating answer..." : hasSources ? "Grounded in your notebook sources" : "Add sources to ground your responses"}
           </p>
-          {sourceNames.length > 0 && (
+          {sources.length > 0 && (
             <div className="mt-3 flex max-w-3xl flex-wrap gap-2">
-              {sourceNames.slice(0, 5).map((sourceName) => (
-                <span key={sourceName} className="inline-flex max-w-44 items-center gap-1.5 rounded-full border border-white/[.1] bg-white/[.045] px-2.5 py-1 text-xs text-zinc-300">
+              {sources.slice(0, 5).map((source, index) => (
+                <span key={source.id ?? `${source.title}-${index}`} className="inline-flex max-w-44 items-center gap-1.5 rounded-full border border-white/[.1] bg-white/[.045] px-2.5 py-1 text-xs text-zinc-300">
                   <FileText className="size-3 text-violet-300" />
-                  <span className="truncate">{sourceName}</span>
+                  <span className="truncate">{source.title}</span>
                 </span>
               ))}
-              {sourceNames.length > 5 && <span className="rounded-full border border-white/[.1] bg-white/[.03] px-2.5 py-1 text-xs text-zinc-500">+{sourceNames.length - 5} more</span>}
+              {sources.length > 5 && <span className="rounded-full border border-white/[.1] bg-white/[.03] px-2.5 py-1 text-xs text-zinc-500">+{sources.length - 5} more</span>}
             </div>
           )}
         </div>

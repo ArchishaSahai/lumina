@@ -1,7 +1,7 @@
 import { generateSpeech } from "ai";
 import { openai } from "@ai-sdk/openai";
 import type { RetrievedChunk } from "@/lib/ai/rag";
-import { saveBuffer } from "@/lib/storage";
+import { resolveStoragePath, saveBuffer } from "@/lib/storage";
 import type { PodcastSettings, VoiceAssignment, VoiceName } from "@/app/actions/podcasts";
 
 const openAiVoiceByName: Record<VoiceName, string> = {
@@ -10,6 +10,10 @@ const openAiVoiceByName: Record<VoiceName, string> = {
   Nova: "nova",
   Luna: "shimmer",
 };
+
+function logPodcastAudioGeneration(details: Record<string, unknown>) {
+  if (process.env.NODE_ENV !== "production") console.info("[podcast-audio:generation]", details);
+}
 
 export function getSpeakerNames(speakers: number) {
   if (speakers === 1) return ["Narrator"];
@@ -142,5 +146,12 @@ export async function generatePodcastAudio(transcript: string, assignments: Voic
   }
 
   const stored = await saveBuffer(Buffer.concat(segments), `podcasts/${podcastId}`, ".mp3");
-  return `/api/podcasts/${podcastId}/audio?path=${encodeURIComponent(stored.path)}`;
+  const audioUrl = `/api/podcasts/${podcastId}/audio?path=${encodeURIComponent(stored.path)}`;
+  logPodcastAudioGeneration({
+    podcastId,
+    absoluteFilePath: resolveStoragePath(stored.path),
+    relativePathSavedToDatabase: stored.path,
+    finalAudioUrlSaved: audioUrl,
+  });
+  return audioUrl;
 }

@@ -1,41 +1,59 @@
+import { existsSync } from "node:fs";
 import { auth } from "@clerk/nextjs/server";
-import { stat as fsStat } from "node:fs/promises";
-import { createReadStream } from "node:fs";
-import os from "node:os";
-import path from "node:path";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { createFileReadStream, resolveStoragePath, statFile } from "@/lib/storage";
 
-const storageRoot =
-  process.env.UPLOAD_STORAGE_DIR ??
-  (process.env.VERCEL
-    ? path.join(os.tmpdir(), "lumina", "uploads")
-    : path.join(process.cwd(), ".data", "uploads"));
-
-function resolveStoragePath(filePath: string) {
-  const destination = path.resolve(storageRoot, filePath);
-  const relative = path.relative(storageRoot, destination);
-  if (relative.startsWith("..") || path.isAbsolute(relative))
-    throw new Error("Invalid storage path.");
-  return destination;
+function logPodcastAudioRoute(details: Record<string, unknown>) {
+  if (process.env.NODE_ENV !== "production") console.info("[podcast-audio:route]", details);
 }
 
-async function resolveAudioPath(request: Request, userId: string) {
-  const { searchParams } = new URL(request.url);
-  const id = request.url.split("/api/podcasts/")[1]?.split("/audio")[0];
-  if (!id) return null;
+function getStoredAudioPath(audioUrl: string) {
+  return new URL(audioUrl, "http://localhost").searchParams.get("path");
+}
 
+async function resolveAudioPath(request: Request, userId: string, id: string) {
+  const { searchParams } = new URL(request.url);
   const requestedPath = searchParams.get("path");
 
-  const podcast = await prisma.podcast.findFirst({ where: { id, userId } });
-  if (!podcast || !podcast.audioUrl) return null;
+  const podcast = await prisma.podcast.findFirst({ where: { id, notebook: { userId } } });
+  logPodcastAudioRoute({
+    podcastId: id,
+    pathQueryParameter: requestedPath,
+    podcastAudioUrlFromDb: podcast?.audioUrl ?? null,
+  });
+  if (!podcast || !podcast.audioUrl) {
+    logPodcastAudioRoute({
+      podcastId: id,
+      pathQueryParameter: requestedPath,
+      podcastAudioUrlFromDb: podcast?.audioUrl ?? null,
+      notFoundReason: !podcast ? "Podcast row was not found for this user." : "Podcast row has no audioUrl.",
+    });
+    return null;
+  }
 
-  const storedPath = podcast.audioUrl.includes("path=")
-    ? decodeURIComponent(podcast.audioUrl.split("path=")[1])
-    : null;
-  if (!requestedPath || requestedPath !== storedPath) return null;
+  const storedPath = getStoredAudioPath(podcast.audioUrl);
+  if (!requestedPath || requestedPath !== storedPath) {
+    logPodcastAudioRoute({
+      podcastId: id,
+      pathQueryParameter: requestedPath,
+      podcastAudioUrlFromDb: podcast.audioUrl,
+      notFoundReason: !requestedPath ? "Missing path query parameter." : "Path query parameter does not match podcast.audioUrl path.",
+      storedPath,
+    });
+    return null;
+  }
 
-  return { filePath: resolveStoragePath(requestedPath), podcast };
+  const resolvedPath = resolveStoragePath(requestedPath);
+  logPodcastAudioRoute({
+    podcastId: id,
+    pathQueryParameter: requestedPath,
+    podcastAudioUrlFromDb: podcast.audioUrl,
+    resolvedAbsoluteFilePath: resolvedPath,
+    existsOnDisk: existsSync(resolvedPath),
+  });
+
+  return { filePath: requestedPath, podcast };
 }
 
 export async function HEAD(
@@ -46,10 +64,9 @@ export async function HEAD(
   if (!userId)
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  // Consume the params to satisfy Next.js dynamic-route contract
-  await params;
+  const { id } = await params;
 
-  const result = await resolveAudioPath(request, userId);
+  const result = await resolveAudioPath(request, userId, id);
   if (!result)
     return NextResponse.json(
       { error: "Podcast audio not found." },
@@ -59,9 +76,18 @@ export async function HEAD(
   const { filePath, podcast } = result;
   let fileSize: number;
   try {
-    const stats = await fsStat(filePath);
+    const stats = await statFile(filePath);
     fileSize = stats.size;
   } catch {
+    const resolvedPath = resolveStoragePath(filePath);
+    logPodcastAudioRoute({
+      podcastId: id,
+      pathQueryParameter: filePath,
+      podcastAudioUrlFromDb: podcast.audioUrl,
+      resolvedAbsoluteFilePath: resolvedPath,
+      existsOnDisk: existsSync(resolvedPath),
+      notFoundReason: "Audio file stat failed in HEAD handler.",
+    });
     return NextResponse.json(
       { error: "Audio file not found on disk." },
       { status: 404 },
@@ -87,10 +113,9 @@ export async function GET(
   if (!userId)
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  // Consume the params to satisfy Next.js dynamic-route contract
-  await params;
+  const { id } = await params;
 
-  const result = await resolveAudioPath(request, userId);
+  const result = await resolveAudioPath(request, userId, id);
   if (!result)
     return NextResponse.json(
       { error: "Podcast audio not found." },
@@ -101,9 +126,18 @@ export async function GET(
 
   let fileSize: number;
   try {
-    const stats = await fsStat(filePath);
+    const stats = await statFile(filePath);
     fileSize = stats.size;
   } catch {
+    const resolvedPath = resolveStoragePath(filePath);
+    logPodcastAudioRoute({
+      podcastId: id,
+      pathQueryParameter: filePath,
+      podcastAudioUrlFromDb: podcast.audioUrl,
+      resolvedAbsoluteFilePath: resolvedPath,
+      existsOnDisk: existsSync(resolvedPath),
+      notFoundReason: "Audio file stat failed in GET handler.",
+    });
     return NextResponse.json(
       { error: "Audio file not found on disk." },
       { status: 404 },
@@ -141,7 +175,7 @@ export async function GET(
 
     const chunkSize = end - start + 1;
 
-    const nodeStream = createReadStream(filePath, { start, end });
+    const nodeStream = createFileReadStream(filePath, { start, end });
     const webStream = new ReadableStream({
       start(controller) {
         nodeStream.on("data", (chunk: Buffer | string) => {
@@ -170,7 +204,7 @@ export async function GET(
   }
 
   // --- Full request (200 OK) ---
-  const nodeStream = createReadStream(filePath);
+  const nodeStream = createFileReadStream(filePath);
   const webStream = new ReadableStream({
     start(controller) {
       nodeStream.on("data", (chunk: Buffer | string) => {

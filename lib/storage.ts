@@ -1,4 +1,5 @@
-import { mkdir, readFile as readLocalFile, rm, writeFile } from "node:fs/promises";
+import { createReadStream } from "node:fs";
+import { mkdir, readFile as readLocalFile, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
@@ -9,8 +10,16 @@ export type StoredFile = {
   path: string;
 };
 
+function normalizeStorageDirectory(directory: string) {
+  return directory
+    .split(/[\\/]+/)
+    .map((segment) => segment.replace(/[^a-zA-Z0-9_-]/g, ""))
+    .filter(Boolean)
+    .join("/");
+}
+
 export async function saveFile(file: File, directory: string): Promise<StoredFile> {
-  const safeDirectory = directory.replace(/[^a-zA-Z0-9_-]/g, "");
+  const safeDirectory = normalizeStorageDirectory(directory);
   const extension = path.extname(file.name).toLowerCase();
   const filename = `${randomUUID()}${extension}`;
   const destinationDirectory = path.join(storageRoot, safeDirectory);
@@ -27,7 +36,7 @@ export async function saveFile(file: File, directory: string): Promise<StoredFil
 }
 
 export async function saveBuffer(buffer: Buffer | Uint8Array, directory: string, extension: string): Promise<StoredFile> {
-  const safeDirectory = directory.replace(/[^a-zA-Z0-9_-]/g, "");
+  const safeDirectory = normalizeStorageDirectory(directory);
   const safeExtension = extension.startsWith(".") ? extension : `.${extension}`;
   const filename = `${randomUUID()}${safeExtension.toLowerCase()}`;
   const destinationDirectory = path.join(storageRoot, safeDirectory);
@@ -51,7 +60,15 @@ export async function readFile(filePath: string): Promise<Buffer> {
   return readLocalFile(resolveStoragePath(filePath));
 }
 
-function resolveStoragePath(filePath: string) {
+export async function statFile(filePath: string) {
+  return stat(resolveStoragePath(filePath));
+}
+
+export function createFileReadStream(filePath: string, options?: { start?: number; end?: number }) {
+  return createReadStream(resolveStoragePath(filePath), options);
+}
+
+export function resolveStoragePath(filePath: string) {
   const destination = path.resolve(storageRoot, filePath);
   const relative = path.relative(storageRoot, destination);
   if (relative.startsWith("..") || path.isAbsolute(relative)) throw new Error("Invalid storage path.");

@@ -184,7 +184,7 @@ export function NotebookWorkspace({
         <NotebookChat
           notebookId={notebookId}
           notebookTitle={title}
-          sourceNames={sources.map((source) => source.title)}
+          sources={sources.map((source) => ({ id: source.id, title: source.title }))}
           conversationId={currentConversation?.id ?? null}
           messages={currentMessages}
           hasSources={hasSources}
