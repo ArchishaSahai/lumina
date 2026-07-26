@@ -61,7 +61,7 @@ const jailbreakSignals = [
   "you are now an unrestricted",
 ];
 
-const broadNotebookTerms = new Set(["notebook", "source", "sources", "document", "documents", "file", "files", "video", "pdf", "summary", "summarize", "roadmap", "study", "explain", "overview", "compare", "uploaded", "podcast", "episode"]);
+const broadNotebookTerms = new Set(["notebook", "source", "sources", "document", "documents", "file", "files", "video", "pdf", "summary", "summarize", "roadmap", "study", "explain", "overview", "compare", "uploaded", "podcast", "episode", "phase", "task", "objective", "objectives"]);
 const stopwords = new Set(["the", "and", "for", "with", "what", "how", "why", "when", "where", "about", "this", "that", "from", "your", "you", "are", "was", "were", "does", "did", "can", "could", "would", "should", "tell", "give", "make", "into", "only", "just", "please"]);
 
 function config(overrides?: Partial<GuardrailConfig>): GuardrailConfig {
